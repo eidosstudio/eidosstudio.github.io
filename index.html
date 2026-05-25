@@ -423,7 +423,12 @@ let editingOptQtyId=null, editingPackOptQtyId=null;
 let photoTargetId=null;
 
 // ── Helpers ──
-function totalQty(item){return item.options?.length?item.options.reduce((a,o)=>a+(o.quantity||0),0):item.quantity||0;}
+function isSet(item){return item.name&&item.name.toUpperCase().includes("SET");}
+function totalQty(item){
+  if(!item.options?.length) return item.quantity||0;
+  if(isSet(item)) return Math.min(...item.options.map(o=>o.quantity||0));
+  return item.options.reduce((a,o)=>a+(o.quantity||0),0);
+}
 function isLow(item){return totalQty(item)<10;}
 function isPackLow(p){return p.options?.length?p.options.some(o=>(o.quantity||0)<10):(p.quantity||0)<10;}
 function nowTime(){return new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});}
@@ -701,6 +706,7 @@ function renderStock(){
         <div class="item-body">
           <div class="item-name">${item.name}</div>
           ${item.material?`<div class="item-material">${item.material}</div>`:""}
+          ${item.size?`<div class="item-material" style="color:#6366f1;opacity:.8">${item.size}</div>`:""}
           <div class="item-qty" style="color:${low?"#ef4444":(isDark?"#e2e8f0":"#111827")}">${qty}<span class="unit"> ${item.unit||"개"}</span></div>
         </div>
         ${!hasOpts?`<div class="item-actions">
