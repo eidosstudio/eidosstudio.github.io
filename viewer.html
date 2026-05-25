@@ -624,14 +624,18 @@ function renderStock(){
     {l:"총 수량",v:total.toLocaleString(),c:"#8b5cf6",click:false},
     {l:"컬렉션",v:colls.length+"개",c:"#10b981",click:false},
     {l:"재고 부족",v:low.length+"종",c:low.length>0?"#ef4444":"#6b7280",click:true},
-  ].map(s=>`<div class="stat-tile" style="cursor:${s.click?"pointer":"default"}" ${s.click?'onclick="toggleLowOnly()"':""}>
+  ].map(s=>`<div class="stat-tile" style="cursor:${s.click?"pointer":"default"}" ${s.click?'onclick="window.toggleLowOnly()"':""}>
     <div class="stat-val" style="color:${s.c}">${s.v}</div>
     <div class="stat-lbl">${s.l}${s.click&&showLowOnly?" ✓":""}</div></div>`).join("");
 
-  document.getElementById("year-filters").innerHTML=["전체",...years].map(y=>
-    `<button class="fbtn ${filterYear===y?"on":""}" onclick="setFilterYear('${y}')">${y}</button>`).join("");
-  document.getElementById("coll-filters").innerHTML=["전체",...colls].map(c=>
-    `<button class="fbtn ${activeColl===c?"on":""}" onclick="setFilterColl('${c}')">${c}</button>`).join("");
+  document.getElementById("year-filters").innerHTML=["전체",...years].map(y=>{
+    const on=filterYear===y?"on":"";
+    return `<button class="fbtn ${on}" onclick="window.setFilterYear('${y}')">${y}</button>`;
+  }).join("");
+  document.getElementById("coll-filters").innerHTML=["전체",...colls].map(c=>{
+    const on=activeColl===c?"on":"";
+    return `<button class="fbtn ${on}" onclick="window.setFilterColl('${c}')">${c}</button>`;
+  }).join("");
 
   const filtered=items.filter(i=>
     (showLowOnly?isLow(i):true)&&
@@ -683,7 +687,7 @@ function renderStock(){
       </div>`;
     }).join("");
     return `<div class="collection-group">
-      <div class="coll-header${isCollapsed?" collapsed":""}" onclick="toggleGroup('${safeGk}')">
+      <div class="coll-header${isCollapsed?" collapsed":""}" onclick="window.toggleGroup('${safeGk}')">
         <span>${isCollapsed?"📁":"🗂️"}</span>
         <span class="coll-name">${gk}</span>
         <span class="coll-count">${gitems.length}종 · ${gTotal.toLocaleString()}개</span>
@@ -744,8 +748,10 @@ function renderPack(){
 
 // ── Render History ──
 function renderHistory(){
-  document.getElementById("tx-filters").innerHTML=["전체","입고","출고"].map(f=>
-    `<button class="fbtn ${filterTx===f?"on":""}" onclick="setFilterTx('${f}')">${f}</button>`).join("");
+  document.getElementById("tx-filters").innerHTML=["전체","입고","출고"].map(f=>{
+    const on=filterTx===f?"on":"";
+    return `<button class="fbtn ${on}" onclick="window.setFilterTx('${f}')">${f}</button>`;
+  }).join("");
   const filtered=transactions.filter(t=>filterTx==="전체"||t.type===filterTx);
   const list=document.getElementById("tx-list");
   if(!filtered.length){list.innerHTML=`<div style="padding:40px;text-align:center;font-size:14px;color:#475569">입출고 내역이 없습니다.</div>`;return;}
