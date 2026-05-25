@@ -668,7 +668,7 @@ function renderStock(){
         const oLow=(o.quantity||0)<10;
         const on=o.name.replace(/'/g,"\\'").replace(/"/g,"&quot;");
         return `<div class="opt-row">
-          <span class="opt-name">${o.name}</span>
+          <div style="flex:1;min-width:0"><span class="opt-name">${o.name}</span>${o.size?`<span style="font-size:9px;color:#6366f1;opacity:.8;display:block;margin-top:1px">${o.size}</span>`:""}</div>
           ${oLow?`<span style="font-size:9px;flex-shrink:0">🔴</span>`:""}
           <span class="opt-qty" style="color:${oLow?"#ef4444":(isDark?"#e2e8f0":"#111827")}">${o.quantity||0}<span class="opt-unit"> ${item.unit||"개"}</span></span>
           <button class="btn-opt-edit" onclick="openQtyModal('${item.id}','${on}','${nm}',${o.quantity||0})">수정</button>
