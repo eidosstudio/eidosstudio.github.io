@@ -648,7 +648,9 @@ function renderStock(){
     (activeColl==="전체"||i.collection===activeColl)
   );
   const grouped={};
-  filtered.forEach(item=>{
+  // _order 기준 정렬 후 그룹핑 (엑셀 순서 유지)
+  const sortedFiltered=[...filtered].sort((a,b)=>(a._order||0)-(b._order||0));
+  sortedFiltered.forEach(item=>{
     const k=[item.year,item.collection].filter(Boolean).join(" - ")||"미분류";
     if(!grouped[k])grouped[k]=[];grouped[k].push(item);
   });
