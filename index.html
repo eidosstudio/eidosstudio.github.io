@@ -528,8 +528,7 @@ window.openOptQtyModal=function(itemId){
 window.saveOptQty=async function(){
   const item=items.find(i=>i.id===editingOptQtyId);if(!item?.options)return;
   item.options.forEach((o,i)=>{const v=parseInt(document.getElementById("optqty-"+i)?.value);if(!isNaN(v))o.quantity=v;});
-  const data={...item};if(data.imageUrl?.startsWith("data:"))delete data.imageUrl;
-  try{await setDoc(doc(collection(db,"items"),item.id),data);closeModal("optqty-modal");showToast("수량 저장됐어요 ✅");}
+  try{await setDoc(doc(collection(db,"items"),item.id),{...item});closeModal("optqty-modal");showToast("수량 저장됐어요 ✅");}
   catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
@@ -549,8 +548,7 @@ window.confirmQty=async function(){
   const clone=JSON.parse(JSON.stringify(item));
   if(qtyOptName&&clone.options){const o=clone.options.find(x=>x.name===qtyOptName);if(o)o.quantity=val;}
   else clone.quantity=val;
-  const data={...clone};if(data.imageUrl?.startsWith("data:"))delete data.imageUrl;
-  try{await setDoc(doc(collection(db,"items"),item.id),data);closeModal("qty-modal");showToast("수량 수정됐어요 ✅");}
+  try{await setDoc(doc(collection(db,"items"),item.id),clone);closeModal("qty-modal");showToast("수량 수정됐어요 ✅");}
   catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
@@ -560,7 +558,7 @@ document.getElementById("photo-input").addEventListener("change",e=>{
   const reader=new FileReader();
   reader.onload=async ev=>{
     const item=items.find(i=>i.id===photoTargetId);
-    if(item){const data={...item,imageUrl:ev.target.result};delete data.imageUrl;data.imageUrl=ev.target.result;
+    if(item){const data={...item,imageUrl:ev.target.result};
       try{await setDoc(doc(collection(db,"items"),item.id),data);}catch(e){showToast("사진 저장 오류","#f87171");}}
     photoTargetId=null;
   };reader.readAsDataURL(file);e.target.value="";
@@ -852,8 +850,7 @@ data: 출고/입고={itemId,optionName,quantity,destination,unit}, 일괄재고�
         if(action==="출고"&&curQty<d.quantity){removeTyping();addBubble("ai",`재고 부족! 현재 ${curQty}${item.unit}`);isLoading=false;return;}
         const nq=action==="입고"?curQty+d.quantity:curQty-d.quantity;
         if(opt)opt.quantity=nq;else item.quantity=nq;
-        const itemData={...item};if(itemData.imageUrl?.startsWith("data:"))delete itemData.imageUrl;
-        await setDoc(doc(collection(db,"items"),item.id),itemData);
+        await setDoc(doc(collection(db,"items"),item.id),{...item});
         await addDoc(collection(db,"transactions"),{itemId:item.id,itemName:item.name,optionName:d.optionName||null,collection:item.collection,unit:item.unit,type:action,quantity:d.quantity,destination:d.destination||"-",date:todayDate(),time:nowTime(),createdAt:serverTimestamp()});
         if(nq<10)extra=`\n\n🔴 ${item.name}${d.optionName?` [${d.optionName}]`:""} 발주 필요! (${nq}${item.unit})`;
       }
@@ -864,8 +861,7 @@ data: 출고/입고={itemId,optionName,quantity,destination,unit}, 일괄재고�
         if(item&&typeof newQuantity==="number"){
           if(optionName&&item.options){const o=item.options.find(x=>x.name===optionName);if(o){o.quantity=newQuantity;count++;}}
           else{item.quantity=newQuantity;count++;}
-          const itemData={...item};if(itemData.imageUrl?.startsWith("data:"))delete itemData.imageUrl;
-          await setDoc(doc(collection(db,"items"),item.id),itemData);
+          await setDoc(doc(collection(db,"items"),item.id),{...item});
         }
       }
       extra=`\n✅ ${count}개 항목 업데이트 완료`;
@@ -874,8 +870,7 @@ data: 출고/입고={itemId,optionName,quantity,destination,unit}, 일괄재고�
       if(item){
         if(d.optionName&&item.options){const o=item.options.find(x=>x.name===d.optionName);if(o)o.quantity=d.newQuantity;}
         else item.quantity=d.newQuantity;
-        const itemData={...item};if(itemData.imageUrl?.startsWith("data:"))delete itemData.imageUrl;
-        await setDoc(doc(collection(db,"items"),item.id),itemData);
+        await setDoc(doc(collection(db,"items"),item.id),{...item});
       }
     }
     removeTyping();addBubble("ai",message+extra);
