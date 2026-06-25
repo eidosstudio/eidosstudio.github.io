@@ -536,8 +536,138 @@ function renderCart(){
 window.removeFromCart=i=>{cart.splice(i,1);updateCartBadge();renderCart();};
 window.clearCart=()=>{cart=[];updateCartBadge();renderCart();};
 
+// ── 수정 가능 여부 확인 ──
+function canEdit(){
+  const now=new Date();
+  const day=now.getDay(); // 0=일
+  const hour=now.getHours();
+  // 일요일 21시 이후 수정 불가
+  if(day===0&&hour>=21) return false;
+  return true;
+}
+
+function getNoticeBanner(){
+  const now=new Date();
+  const day=now.getDay();
+  const hour=now.getHours();
+  const days=["일","월","화","수","목","금","토"];
+
+  // 다음 주 화요일 날짜 계산
+  const nextTue=new Date(now);
+  const diffToTue=(2-day+7)%7||7; // 이번주 화요일까지 남은 일수
+  const nextTueDiff=diffToTue+(diffToTue===0?7:0);
+  nextTue.setDate(now.getDate()+nextTueDiff+7);
+  const tueFmt=`${nextTue.getMonth()+1}/${nextTue.getDate()}(화)`;
+
+  // 다다음 주 화요일
+  const nextNextTue=new Date(nextTue);
+  nextNextTue.setDate(nextTue.getDate()+7);
+  const nextNextFmt=`${nextNextTue.getMonth()+1}/${nextNextTue.getDate()}(화)`;
+
+  if(day===0&&hour>=21){
+    // 일요일 9시 이후 - 마감
+    return{
+      color:"#ef4444",
+      bg:"rgba(239,68,68,0.1)",
+      border:"rgba(239,68,68,0.25)",
+      icon:"🔒",
+      title:"이번 주 주문이 마감됐어요",
+      desc:`지금 주문하시면 ${nextNextFmt}에 발송돼요`
+    };
+  } else if(day===0&&hour<21){
+    // 일요일 9시 이전
+    const remain=21-hour;
+    return{
+      color:"#fbbf24",
+      bg:"rgba(251,191,36,0.1)",
+      border:"rgba(251,191,36,0.25)",
+      icon:"⏰",
+      title:`오늘 오후 9시까지 주문·수정 가능해요 (${remain}시간 남음)`,
+      desc:`이번 주 주문은 ${tueFmt}에 발송돼요`
+    };
+  } else if(day===1||day===2){
+    // 월,화요일
+    return{
+      color:"#f87171",
+      bg:"rgba(248,113,113,0.08)",
+      border:"rgba(248,113,113,0.2)",
+      icon:"⚠️",
+      title:"월·화요일 주문은 다음 주 화요일에 발송돼요",
+      desc:`지난 주 일요일 9시 이전 주문은 ${tueFmt} 발송 / 지금 주문은 ${nextNextFmt} 발송`
+    };
+  } else {
+    // 수~토
+    return{
+      color:"#34d399",
+      bg:"rgba(52,211,153,0.08)",
+      border:"rgba(52,211,153,0.2)",
+      icon:"📦",
+      title:`이번 주 주문은 ${tueFmt}에 발송돼요`,
+      desc:"일요일 오후 9시까지 주문·수정 가능해요"
+    };
+  }
+}
+
+// ── 수량 수정 모달 (매니저용) ──
+let editOrderId=null,editItemIdx=null;
+window.openOrderEditModal=(orderId,itemIdx,itemName,currentQty,unit)=>{
+  if(!canEdit()){showToast("일요일 오후 9시 이후에는 수정할 수 없어요","#f87171");return;}
+  editOrderId=orderId;editItemIdx=itemIdx;
+  const modal=document.createElement("div");modal.className="modal-bg";modal.id="order-edit-modal";
+  modal.innerHTML=`<div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">${itemName} 수량 수정</div>
+    <div style="font-size:22px;font-weight:800;color:#6366f1;margin-bottom:12px">${currentQty}${unit}</div>
+    <div class="field-wrap"><div class="field-label">새 수량</div>
+      <input id="order-edit-qty" type="number" min="1" value="${currentQty}" class="field-input"
+        onkeydown="if(event.key==='Enter')confirmOrderEdit()">
+    </div>
+    <button class="btn-primary" onclick="confirmOrderEdit()">수정하기</button>
+    <button class="btn-secondary-sm" onclick="document.getElementById('order-edit-modal').remove()">취소</button>
+  </div>`;
+  modal.addEventListener("click",e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById("order-edit-qty")?.focus(),100);
+};
+
+window.confirmOrderEdit=async()=>{
+  if(!canEdit()){showToast("일요일 오후 9시 이후에는 수정할 수 없어요","#f87171");return;}
+  const newQty=parseInt(document.getElementById("order-edit-qty")?.value);
+  if(!newQty||newQty<1){showToast("올바른 수량을 입력해주세요","#f87171");return;}
+  const order=orders.find(o=>o.id===editOrderId);
+  if(!order)return;
+  const oldQty=order.items[editItemIdx].qty;
+  const diff=newQty-oldQty; // 양수면 추가, 음수면 차감
+  // 재고 재조정
+  const it=order.items[editItemIdx];
+  const item=items.find(i=>i.id===it.itemId);
+  if(item&&diff!==0){
+    const clone=JSON.parse(JSON.stringify(item));
+    if(it.optName&&clone.options){
+      const o=clone.options.find(x=>x.name===it.optName);
+      if(o){
+        if(diff>0&&o.quantity<diff){showToast(`재고 부족! 추가 가능 수량: ${o.quantity}개`,"#f87171");return;}
+        o.quantity=Math.max(0,o.quantity-diff);
+      }
+    }else{
+      if(diff>0&&clone.quantity<diff){showToast(`재고 부족! 추가 가능 수량: ${clone.quantity}개`,"#f87171");return;}
+      clone.quantity=Math.max(0,(clone.quantity||0)-diff);
+    }
+    try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
+  }
+  // 주문 수량 업데이트
+  const updatedItems=order.items.map((it,i)=>i===editItemIdx?{...it,qty:newQty}:it);
+  try{
+    await setDoc(doc(collection(db,"orders"),editOrderId),{...order,items:updatedItems},{merge:false});
+    document.getElementById("order-edit-modal")?.remove();
+    showToast("수량이 수정됐어요 ✅");
+  }catch(e){showToast("저장 오류: "+e.message,"#f87171");}
+};
+
 // ── 렌더 출고요청 ──
 function renderOrders(){
+  const notice=getNoticeBanner();
+  const editable=canEdit();
   const grouped={};
   orders.forEach(o=>{
     const lbl=o.weekLabel||getWeekLabel(o.date||new Date().toISOString());
@@ -545,10 +675,18 @@ function renderOrders(){
     grouped[lbl].push(o);
   });
   const el=document.getElementById("orders-list");
+
+  // 안내 배너
+  const banner=`<div style="background:${notice.bg};border:1px solid ${notice.border};border-radius:12px;padding:12px 14px;margin-bottom:16px">
+    <div style="font-weight:700;font-size:13px;color:${notice.color};margin-bottom:4px">${notice.icon} ${notice.title}</div>
+    <div style="font-size:12px;color:${isDark?"#94a3b8":"#6b7280"}">${notice.desc}</div>
+  </div>`;
+
   if(!Object.keys(grouped).length){
-    el.innerHTML=`<div style="text-align:center;padding:60px 20px;font-size:14px;color:#475569">출고 요청 내역이 없어요</div>`;return;
+    el.innerHTML=banner+`<div style="text-align:center;padding:40px 20px;font-size:14px;color:#475569">출고 요청 내역이 없어요</div>`;return;
   }
-  el.innerHTML=Object.entries(grouped).map(([week,wOrders])=>`
+
+  el.innerHTML=banner+Object.entries(grouped).map(([week,wOrders])=>`
     <div class="week-group">
       <div class="week-header">
         <span>📅</span>
@@ -569,11 +707,13 @@ function renderOrders(){
             <div style="font-size:10px;color:${isDark?"#475569":"#9ca3af"}">${order.date||""}</div>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:4px">
-            ${order.items.map(it=>`
-            <div class="item-chip">
-              <span style="font-size:9px;color:#6366f1;font-weight:600;margin-right:2px">${it.collection}</span>
+            ${order.items.map((it,idx)=>`
+            <div class="item-chip" style="display:inline-flex;align-items:center;gap:4px">
+              <span style="font-size:9px;color:#6366f1;font-weight:600">${it.collection}</span>
               ${it.itemName}${it.optName?` [${it.optName}]`:""}
-              <strong style="color:${isDark?"#e2e8f0":"#111827"};margin-left:3px">${it.qty}${it.unit}</strong>
+              <strong style="color:${isDark?"#e2e8f0":"#111827"}">${it.qty}${it.unit}</strong>
+              ${editable&&order.status!=="출고완료"?`<button onclick="openOrderEditModal('${order.id}',${idx},'${it.itemName}${it.optName?" ["+it.optName+"]":""}',${it.qty},'${it.unit}')"
+                style="padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;cursor:pointer;flex-shrink:0">수정</button>`:""}
             </div>`).join("")}
           </div>
         </div>`).join("")}
