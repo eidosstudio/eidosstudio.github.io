@@ -209,7 +209,7 @@ body.light #loading{background:#f5f5f7}
 </div>
 
 <div id="app-body">
-  <div id="tab-stock" class="tab-pane"><div class="page-scroll">
+  <div id="tab-stock" class="tab-pane active"><div class="page-scroll">
     <div class="stat-row" id="stock-stats"></div>
     <div class="filter-label">연도</div><div class="filter-row" id="yr-filters"></div>
     <div class="filter-label">컬렉션</div><div class="filter-row" id="cl-filters"></div>
@@ -221,7 +221,7 @@ body.light #loading{background:#f5f5f7}
     <div style="height:80px"></div>
   </div></div>
 
-  <div id="tab-orders" class="tab-pane active"><div class="page-scroll">
+  <div id="tab-orders" class="tab-pane"><div class="page-scroll">
     <div id="orders-list"></div>
     <div style="height:80px"></div>
   </div></div>
@@ -232,9 +232,9 @@ body.light #loading{background:#f5f5f7}
 </div>
 
 <div id="bottom-nav">
-  <button class="nav-btn" id="nav-stock" onclick="switchTab('stock')"><span class="nav-icon">📦</span>재고</button>
+  <button class="nav-btn active" id="nav-stock" onclick="switchTab('stock')"><span class="nav-icon">📦</span>재고</button>
   <button class="nav-btn" id="nav-cart" onclick="switchTab('cart')"><span class="nav-icon">🛒</span>장바구니<div class="nav-badge" id="cart-badge" style="display:none">0</div></button>
-  <button class="nav-btn active" id="nav-orders" onclick="switchTab('orders')"><span class="nav-icon">📋</span>출고요청</button>
+  <button class="nav-btn" id="nav-orders" onclick="switchTab('orders')"><span class="nav-icon">📋</span>출고요청</button>
   <button class="nav-btn" id="nav-history" onclick="switchTab('history')"><span class="nav-icon">📒</span>내역</button>
 </div>
 
