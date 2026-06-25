@@ -89,7 +89,7 @@ body.light .item-sub{color:#6b7280}
 .unit{font-size:10px;font-weight:400}
 body.dark .unit{color:#475569}
 body.light .unit{color:#6b7280}
-.opts-panel{border-top:1px solid rgba(128,128,128,0.1);padding:6px 10px}
+.opts-panel{border-top:1px solid rgba(128,128,128,0.1);padding:6px 10px;max-height:160px;overflow-y:auto}
 body.dark .opts-panel{background:rgba(0,0,0,0.3)}
 body.light .opts-panel{background:rgba(0,0,0,0.03)}
 .opt-row{display:flex;align-items:center;gap:6px;padding:5px 0}
@@ -499,8 +499,8 @@ function renderStock(){
           ${item.imageUrl?`<img src="${item.imageUrl}" alt="${item.name}">`:`<span style="opacity:.15">📷</span>`}
           ${low?`<div class="low-mask"></div>`:""}
         </div>
-        ${hasOpts?`<div class="opts-panel">${optRows.replace(/opt-row/g,"opt-row").replace(/<span class="opt-qty"/g,`<button style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;margin-left:4px;cursor:pointer" onclick="window.openQtyModal('${item.id}','${item.name.replace(/'/g,"\'")}',OPTNAME,OPTQTY)">수정</button><span class="opt-qty"`)}<button class="btn-cart" onclick="openCartModal('${item.id}')">🛒 담기</button></div>`
-        :`<div class="card-actions"><div style="display:flex;gap:4px"><button class="btn-cart" onclick="openCartModal('${item.id}')" style="flex:1">🛒 담기</button><button onclick="openQtyModal('${item.id}',null,'${nm}',${qty})" style="padding:6px 8px;border-radius:7px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b">수정</button></div></div>`}
+        ${hasOpts?`<div class="opts-panel">${optRows.replace(/opt-row/g,"opt-row").replace(/<span class="opt-qty"/g,`<button style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;margin-left:4px;cursor:pointer" onclick="window.openQtyModal('${item.id}','${item.name.replace(/'/g,"\'")}',OPTNAME,OPTQTY)">수정</button><span class="opt-qty"`)}</div>`
+        :`<div class="card-actions"><button onclick="openQtyModal('${item.id}',null,'${nm}',${qty})" style="width:100%;padding:6px 0;border-radius:7px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b">수량 수정</button></div>`}
       </div>`;
     }).join("");
     return`<div class="collection-group">
