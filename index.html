@@ -225,17 +225,12 @@ body.light #loading{background:#f5f5f7}
     <div id="orders-list"></div>
     <div style="height:80px"></div>
   </div></div>
-  <div id="tab-history" class="tab-pane"><div class="page-scroll">
-    <div class="filter-row" id="tx-filters"></div>
-    <div id="tx-list" style="border-radius:14px;overflow:hidden"></div>
-  </div></div>
 </div>
 
 <div id="bottom-nav">
   <button class="nav-btn active" id="nav-stock" onclick="switchTab('stock')"><span class="nav-icon">📦</span>재고</button>
   <button class="nav-btn" id="nav-cart" onclick="switchTab('cart')"><span class="nav-icon">🛒</span>장바구니<div class="nav-badge" id="cart-badge" style="display:none">0</div></button>
   <button class="nav-btn" id="nav-orders" onclick="switchTab('orders')"><span class="nav-icon">📋</span>출고요청</button>
-  <button class="nav-btn" id="nav-history" onclick="switchTab('history')"><span class="nav-icon">📒</span>내역</button>
 </div>
 
 <script type="module">
@@ -290,7 +285,7 @@ window.toggleTheme=()=>{
 };
 
 window.switchTab=t=>{
-  ["stock","cart","orders","history"].forEach(id=>{
+  ["stock","cart","orders"].forEach(id=>{
     document.getElementById("tab-"+id).classList.remove("active");
     document.getElementById("nav-"+id).classList.remove("active");
   });
@@ -298,7 +293,7 @@ window.switchTab=t=>{
   document.getElementById("nav-"+t).classList.add("active");
   if(t==="cart")renderCart();
   if(t==="orders")renderOrders();
-  if(t==="history")renderHistory();
+
 };
 
 window.closeModal=id=>document.getElementById(id).style.display="none";
