@@ -485,7 +485,7 @@ function renderStock(){
         </div>`;
       }).join(""):"";
       return`<div class="item-card${low?" low-stock":""}">
-        <div class="item-img">
+        <div class="item-img" onclick="window.openPhoto('${item.id}')" style="cursor:pointer">
           ${item.imageUrl?`<img src="${item.imageUrl}" alt="${item.name}">`:`<span style="opacity:.15">📷</span>`}
           ${low?`<div class="low-mask"></div>`:""}
         </div>
@@ -495,12 +495,17 @@ function renderStock(){
           ${item.size?`<div class="item-sub" style="color:#6366f1;opacity:.85">${item.size}</div>`:""}
           <div class="item-qty" style="color:${low?"#ef4444":(isDark?"#e2e8f0":"#111827")}">${qty}<span class="unit"> ${item.unit||"개"}</span></div>
         </div>
-        <div class="item-img" onclick="window.openPhoto('${item.id}')" style="cursor:pointer">
-          ${item.imageUrl?`<img src="${item.imageUrl}" alt="${item.name}">`:`<span style="opacity:.15">📷</span>`}
-          ${low?`<div class="low-mask"></div>`:""}
-        </div>
-        ${hasOpts?`<div class="opts-panel">${optRows.replace(/opt-row/g,"opt-row").replace(/<span class="opt-qty"/g,`<button style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;margin-left:4px;cursor:pointer" onclick="window.openQtyModal('${item.id}','${item.name.replace(/'/g,"\'")}',OPTNAME,OPTQTY)">수정</button><span class="opt-qty"`)}</div>`
-        :`<div class="card-actions"><button onclick="openQtyModal('${item.id}',null,'${nm}',${qty})" style="width:100%;padding:6px 0;border-radius:7px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b">수량 수정</button></div>`}
+        ${hasOpts
+          ?`<div class="opts-panel">${item.options.map(o=>{
+              const oLow=(o.quantity||0)<10;
+              const on=o.name.replace(/'/g,"\'");
+              return`<div class="opt-row">
+                <span class="opt-name">${o.name}${o.size?`<br><span style="font-size:9px;color:#6366f1;opacity:.8">${o.size}</span>`:""}</span>
+                ${oLow?`<span style="font-size:9px;flex-shrink:0">🔴</span>`:""}
+                <span class="opt-qty" style="color:${oLow?"#ef4444":(isDark?"#e2e8f0":"#111827")};flex-shrink:0">${o.quantity||0}<span class="unit"> ${item.unit||"개"}</span></span>
+                <button onclick="window.openQtyModal('${item.id}','${on}','${nm}',${o.quantity||0})" style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;flex-shrink:0;cursor:pointer">수정</button>
+              </div>`;}).join("")}</div>`
+          :`<div class="card-actions"><button onclick="window.openQtyModal('${item.id}',null,'${nm}',${qty})" style="width:100%;padding:6px 0;border-radius:7px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer">수량 수정</button></div>`}
       </div>`;
     }).join("");
     return`<div class="collection-group">
