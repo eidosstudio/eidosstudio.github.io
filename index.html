@@ -215,7 +215,10 @@ body.light #loading{background:#f5f5f7}
     <div class="filter-label">컬렉션</div><div class="filter-row" id="cl-filters"></div>
     <div id="stock-groups"></div>
     <div style="height:80px"></div>
-  </div></div>
+  </div>
+  <!-- 상품 추가 FAB -->
+  <button onclick="window.openAddItemModal()" style="position:fixed;bottom:calc(60px + 16px);right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;font-size:26px;border:none;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:center;z-index:90" id="add-item-fab">＋</button>
+  </div>
 
   <div id="tab-cart" class="tab-pane"><div class="page-scroll" id="cart-page">
     <div style="height:80px"></div>
@@ -552,12 +555,124 @@ onSnapshot(query(collection(db,"transactions"),orderBy("createdAt","desc")),snap
   if(document.getElementById("tab-history").classList.contains("active"))renderHistory();
 });
 
+// ── 상품 추가 모달 ──
+let addOptList=[];
+window.openAddItemModal=()=>{
+  addOptList=[];
+  const modal=document.createElement("div");modal.className="modal-bg";modal.id="add-item-modal";
+  modal.innerHTML=`<div class="modal-sheet" style="max-height:90dvh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div class="modal-title">➕ 상품 추가</div>
+    <div class="field-wrap"><div class="field-label">연도</div><input id="ai-year" class="field-input" placeholder="예: 2026" type="number"></div>
+    <div class="field-wrap"><div class="field-label">컬렉션명 *</div><input id="ai-coll" class="field-input" placeholder="예: VEGGIE"></div>
+    <div class="field-wrap"><div class="field-label">상품명 *</div><input id="ai-name" class="field-input" placeholder="예: PAPER POP"></div>
+    <div class="field-wrap"><div class="field-label">소재</div><input id="ai-mat" class="field-input" placeholder="예: sus, acryl"></div>
+    <div class="field-wrap"><div class="field-label">사이즈</div><input id="ai-size" class="field-input" placeholder="예: 150 x 30"></div>
+    <div class="field-wrap"><div class="field-label">단위</div><input id="ai-unit" class="field-input" placeholder="개" value="개"></div>
+    <div class="field-wrap">
+      <div class="field-label">옵션 (없으면 비워두세요)</div>
+      <div id="ai-opt-list" style="margin-bottom:6px"></div>
+      <div style="display:flex;gap:6px">
+        <input id="ai-opt-name" class="field-input" placeholder="옵션명 예: 한국어" style="flex:1">
+        <input id="ai-opt-qty" class="field-input" placeholder="수량" type="number" style="width:70px">
+        <button onclick="window.addOptItem()" style="padding:8px 12px;border-radius:8px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:12px;font-weight:600;cursor:pointer">추가</button>
+      </div>
+    </div>
+    <div class="field-wrap" id="ai-qty-wrap">
+      <div class="field-label">수량</div>
+      <input id="ai-qty" class="field-input" placeholder="0" type="number" min="0" value="0">
+    </div>
+    <button class="btn-primary" onclick="window.confirmAddItem()">저장</button>
+    <button class="btn-secondary-sm" onclick="document.getElementById('add-item-modal').remove()">취소</button>
+  </div>`;
+  modal.addEventListener("click",e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
+  document.getElementById("ai-opt-name").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();window.addOptItem();}});
+};
+window.addOptItem=()=>{
+  const name=document.getElementById("ai-opt-name")?.value.trim();
+  const qty=parseInt(document.getElementById("ai-opt-qty")?.value)||0;
+  if(!name)return;
+  addOptList.push({name,quantity:qty,size:null});
+  document.getElementById("ai-opt-name").value="";document.getElementById("ai-opt-qty").value="";
+  const el=document.getElementById("ai-opt-list");if(!el)return;
+  el.innerHTML=addOptList.map((o,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:7px;background:rgba(99,102,241,0.08);margin-bottom:4px">
+      <span style="flex:1;font-size:12px;color:#a5b4fc">${o.name}</span>
+      <span style="font-size:12px;font-weight:700">${o.quantity}개</span>
+      <button onclick="window.removeOptItem(${i})" style="padding:2px 7px;border-radius:5px;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#f87171;font-size:11px;cursor:pointer">삭제</button>
+    </div>`).join("");
+  const qw=document.getElementById("ai-qty-wrap");if(qw)qw.style.display=addOptList.length?"none":"block";
+};
+window.removeOptItem=i=>{addOptList.splice(i,1);window.addOptItem&&document.getElementById("ai-opt-name")&&window.addOptItem();};
+window.confirmAddItem=async()=>{
+  const coll=document.getElementById("ai-coll")?.value.trim();
+  const name=document.getElementById("ai-name")?.value.trim();
+  if(!coll||!name){showToast("컬렉션명과 상품명은 필수예요","#f87171");return;}
+  const newItem={
+    id:"item_"+Date.now(),
+    year:document.getElementById("ai-year")?.value.trim()||null,
+    collection:coll,name,
+    material:document.getElementById("ai-mat")?.value.trim()||null,
+    size:document.getElementById("ai-size")?.value.trim()||null,
+    unit:document.getElementById("ai-unit")?.value.trim()||"개",
+    imageUrl:null,_order:items.length,
+    options:addOptList.length?addOptList.map(o=>({...o})):null,
+    quantity:addOptList.length?0:(parseInt(document.getElementById("ai-qty")?.value)||0)
+  };
+  try{
+    await setDoc(doc(collection(db,"items"),newItem.id),newItem);
+    document.getElementById("add-item-modal")?.remove();
+    showToast("✅ "+name+" 추가됐어요!");
+  }catch(e){showToast("오류: "+e.message,"#f87171");}
+};
+
 // 관리자: 출고요청 상태변경
 window.changeStatus=async(orderId,newStatus)=>{
-  const {doc:fbDoc,updateDoc}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
   try{
     await setDoc(doc(collection(db,"orders"),orderId),{status:newStatus},{merge:true});
     showToast(newStatus==="출고완료"?"✅ 출고완료 처리됐어요":"🔄 준비중으로 변경됐어요");
+  }catch(e){showToast("오류: "+e.message,"#f87171");}
+};
+
+// 관리자: 출고요청 취소
+window.openCancelModal=orderId=>{
+  const order=orders.find(o=>o.id===orderId);if(!order)return;
+  const modal=document.createElement("div");modal.className="modal-bg";modal.id="cancel-modal";
+  modal.innerHTML=`<div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🚫 출고 요청 취소</div>
+    <div style="border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
+      <div style="font-weight:700;margin-bottom:6px">${order.storeName}</div>
+      ${order.items.map(it=>`<div style="font-size:12px;color:#94a3b8">${it.collection} - ${it.itemName}${it.optName?" ["+it.optName+"]":""} <strong style="color:#e2e8f0">${it.qty}${it.unit}</strong></div>`).join("")}
+    </div>
+    <div class="field-wrap">
+      <div class="field-label">취소 사유 * (매니저에게 표시돼요)</div>
+      <textarea id="cancel-reason" class="field-input" rows="3" placeholder="예: 해당 매장 재고 충분, 발송 일정 변경 등" style="resize:none;line-height:1.5"></textarea>
+    </div>
+    <button style="width:100%;padding:13px;border-radius:12px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;font-weight:700;font-size:15px;margin-top:6px;border:none;cursor:pointer" onclick="window.confirmCancel('${orderId}')">취소 처리</button>
+    <button class="btn-secondary-sm" onclick="document.getElementById('cancel-modal').remove()">돌아가기</button>
+  </div>`;
+  modal.addEventListener("click",e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById("cancel-reason")?.focus(),100);
+};
+window.confirmCancel=async(orderId)=>{
+  const reason=document.getElementById("cancel-reason")?.value.trim();
+  if(!reason){showToast("취소 사유를 입력해주세요","#f87171");return;}
+  const order=orders.find(o=>o.id===orderId);if(!order)return;
+  // 수량 복원
+  for(const it of order.items){
+    const item=items.find(i=>i.id===it.itemId);if(!item)continue;
+    const clone=JSON.parse(JSON.stringify(item));
+    if(it.optName&&clone.options){const o=clone.options.find(x=>x.name===it.optName);if(o)o.quantity=(o.quantity||0)+it.qty;}
+    else clone.quantity=(clone.quantity||0)+it.qty;
+    try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
+  }
+  try{
+    await setDoc(doc(collection(db,"orders"),orderId),{...order,status:"취소",cancelReason:reason,canceledAt:new Date().toISOString()});
+    document.getElementById("cancel-modal")?.remove();
+    showToast("🚫 취소됐어요. 재고가 복원됐어요.");
   }catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
@@ -653,14 +768,18 @@ function renderOrders(){
       <div class="order-list">
         ${wOrders.map(order=>`
         <div class="order-row">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
             <div style="font-weight:700;font-size:14px;flex:1">${order.storeName}</div>
-<select onchange="window.changeStatus('${order.id}',this.value)" style="padding:4px 10px;border-radius:99px;font-size:11px;font-weight:600;cursor:pointer;outline:none;font-family:inherit;border:1px solid ${order.status==="출고완료"?"rgba(52,211,153,0.3)":"rgba(251,191,36,0.3)"};background:${order.status==="출고완료"?"rgba(52,211,153,0.15)":"rgba(251,191,36,0.15)"};color:${order.status==="출고완료"?"#34d399":"#fbbf24"}">
-              <option value="준비중" ${order.status==="준비중"?"selected":""}>🔄 준비중</option>
-              <option value="출고완료" ${order.status==="출고완료"?"selected":""}>✅ 출고완료</option>
-            </select>
+            ${order.status==="취소"
+              ?`<span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">🚫 취소됨</span>`
+              :`<select onchange="window.changeStatus('${order.id}',this.value)" style="padding:4px 10px;border-radius:99px;font-size:11px;font-weight:600;cursor:pointer;outline:none;font-family:inherit;border:1px solid ${order.status==="출고완료"?"rgba(52,211,153,0.3)":"rgba(251,191,36,0.3)"};background:${order.status==="출고완료"?"rgba(52,211,153,0.15)":"rgba(251,191,36,0.15)"};color:${order.status==="출고완료"?"#34d399":"#fbbf24"}">
+                <option value="준비중" ${order.status==="준비중"?"selected":""}>🔄 준비중</option>
+                <option value="출고완료" ${order.status==="출고완료"?"selected":""}>✅ 출고완료</option>
+              </select>
+              <button onclick="window.openCancelModal('${order.id}')" style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#f87171;cursor:pointer">취소</button>`}
             <div style="font-size:10px;color:${isDark?"#475569":"#9ca3af"}">${order.date||""}</div>
           </div>
+          ${order.status==="취소"&&order.cancelReason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:8px">취소 사유: ${order.cancelReason}</div>`:""}
           <div style="display:flex;flex-wrap:wrap;gap:4px">
             ${order.items.map(it=>`
             <div class="item-chip">
