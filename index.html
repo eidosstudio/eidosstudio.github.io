@@ -548,12 +548,7 @@ function renderCart(){
 window.removeFromCart=i=>{cart.splice(i,1);updateCartBadge();renderCart();};
 window.clearCart=()=>{cart=[];updateCartBadge();renderCart();};
 
-let transactions=[];
-let filterTx="전체";
-onSnapshot(query(collection(db,"transactions"),orderBy("createdAt","desc")),snap=>{
-  transactions=snap.docs.map(d=>({...d.data(),id:d.id}));
-  if(document.getElementById("tab-history").classList.contains("active"))renderHistory();
-});
+
 
 // ── 상품 추가 모달 ──
 let addOptList=[];
@@ -719,27 +714,7 @@ photoInput.addEventListener("change",e=>{
 });
 window.openPhoto=(id)=>{photoTargetId=id;photoInput.click();};
 
-window.setFilterTx=f=>{filterTx=f;renderHistory();};
-function renderHistory(){
-  document.getElementById("tx-filters").innerHTML=["전체","입고","출고","발주"].map(f=>{
-    const on=filterTx===f?"on":"";
-    return`<button class="fbtn ${on}" onclick="window.setFilterTx('${f}')">${f}</button>`;
-  }).join("");
-  const filtered=transactions.filter(t=>filterTx==="전체"||t.type===filterTx);
-  const list=document.getElementById("tx-list");
-  if(!filtered.length){list.innerHTML=`<div style="padding:40px;text-align:center;font-size:14px;color:#475569">내역이 없습니다.</div>`;return;}
-  list.innerHTML=filtered.map(t=>`
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid rgba(128,128,128,0.08);background:${isDark?"#0f1020":"#fff"}">
-      <div style="width:36px;height:36px;border-radius:10px;background:${t.type==="입고"?"rgba(52,211,153,0.12)":"rgba(248,113,113,0.12)"};display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">
-        ${t.type==="입고"?"📥":"📤"}
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.itemName||""}${t.optionName?` [${t.optionName}]`:""}</div>
-        <div style="font-size:11px;color:#475569;margin-top:2px">${t.destination||""} · ${t.date||""} ${t.time||""}</div>
-      </div>
-      <div style="font-weight:700;font-size:15px;color:${t.type==="입고"?"#34d399":"#f87171"};flex-shrink:0">${t.type==="입고"?"+":"-"}${t.quantity}${t.unit||""}</div>
-    </div>`).join("");
-}
+
 
 // ── 렌더 출고요청 ──
 function renderOrders(){
