@@ -703,9 +703,12 @@ function renderOrders(){
         <div class="order-row">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
             <div style="font-weight:700;font-size:14px;flex:1">${order.storeName}</div>
-            <span class="status-badge ${order.status==="출고완료"?"status-done":"status-ready"}">${order.status==="출고완료"?"✅ 출고완료":"🔄 준비중"}</span>
+            ${order.status==="취소"
+              ?`<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">🚫 취소됨</span>`
+              :`<span class="status-badge ${order.status==="출고완료"?"status-done":"status-ready"}">${order.status==="출고완료"?"✅ 출고완료":"🔄 준비중"}</span>`}
             <div style="font-size:10px;color:${isDark?"#475569":"#9ca3af"}">${order.date||""}</div>
           </div>
+          ${order.status==="취소"&&order.cancelReason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:8px">취소 사유: ${order.cancelReason}</div>`:""}
           <div style="display:flex;flex-wrap:wrap;gap:4px">
             ${order.items.map((it,idx)=>`
             <div class="item-chip" style="display:inline-flex;align-items:center;gap:4px">
