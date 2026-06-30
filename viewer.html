@@ -702,7 +702,11 @@ function renderOrders(){
         ${wOrders.map(order=>`
         <div class="order-row">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <div style="font-weight:700;font-size:14px;flex:1">${order.storeName}</div>
+            <div style="font-weight:700;font-size:14px;flex:1;display:flex;align-items:center;gap:6px">
+              ${order.storeName}
+              ${editable&&order.status!=="출고완료"&&order.status!=="취소"?`<button onclick="openStoreNameEditModal('${order.id}','${order.storeName.replace(/'/g,"\\'")}')"
+                style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️ 수정</button>`:""}
+            </div>
             ${order.status==="취소"
               ?`<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">🚫 취소됨</span>`
               :`<span class="status-badge ${order.status==="출고완료"?"status-done":"status-ready"}">${order.status==="출고완료"?"✅ 출고완료":"🔄 준비중"}</span>`}
@@ -715,7 +719,7 @@ function renderOrders(){
               <span style="font-size:9px;color:#6366f1;font-weight:600">${it.collection}</span>
               ${it.itemName}${it.optName?` [${it.optName}]`:""}
               <strong style="color:${isDark?"#e2e8f0":"#111827"}">${it.qty}${it.unit}</strong>
-              ${editable&&order.status!=="출고완료"?`<button onclick="openOrderEditModal('${order.id}',${idx},'${it.itemName}${it.optName?" ["+it.optName+"]":""}',${it.qty},'${it.unit}')"
+              ${editable&&order.status!=="출고완료"&&order.status!=="취소"?`<button onclick="openOrderEditModal('${order.id}',${idx},'${it.itemName}${it.optName?" ["+it.optName+"]":""}',${it.qty},'${it.unit}')"
                 style="padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;cursor:pointer;flex-shrink:0">수정</button>`:""}
             </div>`).join("")}
           </div>
@@ -723,6 +727,44 @@ function renderOrders(){
       </div>
     </div>`).join("");
 }
+
+// ── 매장명 수정 모달 ──
+let editStoreOrderId=null;
+window.openStoreNameEditModal=(orderId,currentName)=>{
+  if(!canEdit()){showToast("일요일 오후 9시 이후에는 수정할 수 없어요","#f87171");return;}
+  editStoreOrderId=orderId;
+  const modal=document.createElement("div");modal.className="modal-bg";modal.id="store-edit-modal";
+  modal.innerHTML=`<div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">매장명 수정</div>
+    <div class="field-wrap">
+      <div class="field-label">매장명</div>
+      <input id="store-edit-input" type="text" value="${currentName.replace(/"/g,"&quot;")}" class="field-input"
+        onkeydown="if(event.key==='Enter')confirmStoreNameEdit()">
+    </div>
+    <button class="btn-primary" onclick="confirmStoreNameEdit()">수정하기</button>
+    <button class="btn-secondary-sm" onclick="document.getElementById('store-edit-modal').remove()">취소</button>
+  </div>`;
+  modal.addEventListener("click",e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
+  setTimeout(()=>{
+    const inp=document.getElementById("store-edit-input");
+    inp?.focus();inp?.select();
+  },100);
+};
+
+window.confirmStoreNameEdit=async()=>{
+  if(!canEdit()){showToast("일요일 오후 9시 이후에는 수정할 수 없어요","#f87171");return;}
+  const newName=document.getElementById("store-edit-input")?.value.trim();
+  if(!newName){showToast("매장명을 입력해주세요","#f87171");return;}
+  const order=orders.find(o=>o.id===editStoreOrderId);
+  if(!order)return;
+  try{
+    await setDoc(doc(collection(db,"orders"),editStoreOrderId),{...order,storeName:newName},{merge:false});
+    document.getElementById("store-edit-modal")?.remove();
+    showToast("매장명이 수정됐어요 ✅");
+  }catch(e){showToast("저장 오류: "+e.message,"#f87171");}
+};
 </script>
 </body>
 </html>
