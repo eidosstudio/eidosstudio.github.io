@@ -643,13 +643,32 @@ async function logToSheet(order){
         unit: it.unit||"개"
       }))
     };
-    await fetch(SHEET_URL, {
-      method:"POST",
-      mode:"no-cors",
-      headers:{"Content-Type":"application/json"},
+    // Apps Script는 리디렉션이 있어서 form 방식으로 전송
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = SHEET_URL;
+    form.target = "_blank";
+    form.style.display = "none";
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "payload";
+    input.value = JSON.stringify(payload);
+    form.appendChild(input);
+    document.body.appendChild(form);
+
+    // fetch로 시도, 실패하면 무시 (no-cors라 응답 못 받아도 서버에는 전달됨)
+    try{
+      await fetch(SHEET_URL+"?data="+encodeURIComponent(JSON.stringify(payload)),{
+        method:"GET",mode:"no-cors"
+      });
+    }catch(_){}
+    // 백업: POST도 시도
+    fetch(SHEET_URL,{
+      method:"POST",mode:"no-cors",
       body:JSON.stringify(payload)
-    });
-    console.log("시트 기록 완료");
+    }).catch(()=>{});
+    document.body.removeChild(form);
+    console.log("시트 기록 시도 완료:", payload);
   }catch(e){
     console.error("시트 기록 오류:", e);
   }
