@@ -622,6 +622,31 @@ window.confirmAddItem=async()=>{
   }catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
+// 사진 확대 보기
+window.viewPhoto=src=>{
+  const overlay=document.createElement("div");
+  overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;z-index:999;cursor:zoom-out;padding:16px";
+  overlay.innerHTML=`<img src="${src}" style="max-width:100%;max-height:90dvh;object-fit:contain;border-radius:10px">`;
+  overlay.addEventListener("click",()=>overlay.remove());
+  document.body.appendChild(overlay);
+};
+
+// 관리자: 상태변경 통합 핸들러
+window.handleStatusChange=async(orderId,action,selectEl)=>{
+  if(!action){return;}
+  if(selectEl)selectEl.value=""; // 드롭다운 초기화
+  if(action==="approve") await window.approveOrder(orderId);
+  else if(action==="reject") window.openRejectModal(orderId);
+  else if(action==="cancel") window.openCancelModal(orderId);
+  else if(action==="검토중"){
+    const order=orders.find(o=>o.id===orderId);if(!order)return;
+    try{
+      await setDoc(doc(collection(db,"orders"),orderId),{...order,status:"검토중"},{merge:false});
+      showToast("🔍 검토중으로 변경됐어요");
+    }catch(e){showToast("오류: "+e.message,"#f87171");}
+  }
+};
+
 // 관리자: 출고요청 승인 (재고 차감)
 window.approveOrder=async(orderId)=>{
   const order=orders.find(o=>o.id===orderId);if(!order)return;
@@ -824,19 +849,33 @@ function renderOrders(){
               ${order.status!=="취소"?`<button onclick="window.openStoreNameEditModal('${order.id}','${order.storeName.replace(/'/g,"\\'")}')"
                 style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️ 수정</button>`:""}
             </div>
-            ${order.status==="취소"||order.status==="반려"
-              ?`<span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">${order.status==="반려"?"❌ 반려":"🚫 취소됨"}</span>`
-              :order.status==="출고완료"
-              ?`<span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(52,211,153,0.15);color:#34d399;border:1px solid rgba(52,211,153,0.3)">✅ 출고완료</span>`
-              :`<div style="display:flex;gap:4px;flex-wrap:wrap">
-                <button onclick="window.approveOrder('${order.id}')" style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;cursor:pointer">✅ 승인·출고</button>
-                <button onclick="window.openRejectModal('${order.id}')" style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#f87171;cursor:pointer">❌ 반려</button>
-                <button onclick="window.openCancelModal('${order.id}')" style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer">취소</button>
+            ${order.status==="취소"
+              ?`<span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">🚫 취소됨</span>`
+              :`<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+                ${order.status==="출고완료"?`<span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(52,211,153,0.15);color:#34d399;border:1px solid rgba(52,211,153,0.3)">✅ 출고완료</span>`
+                :order.status==="반려"?`<span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">❌ 반려</span>`
+                :`<span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3)">🔍 검토중</span>`}
+                <select onchange="window.handleStatusChange('${order.id}',this.value,this)" style="padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;outline:none;font-family:inherit;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#94a3b8">
+                  <option value="">변경...</option>
+                  <option value="approve">✅ 승인·출고완료</option>
+                  <option value="reject">❌ 반려</option>
+                  <option value="검토중">🔍 검토중으로 되돌리기</option>
+                  <option value="cancel">🚫 취소</option>
+                </select>
               </div>`}
             <div style="font-size:10px;color:${isDark?"#475569":"#9ca3af"}">${order.date||""}</div>
           </div>
           ${order.reason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);color:#a5b4fc;margin-bottom:6px">📝 요청 사유: ${order.reason}</div>`:""}
-          ${order.photos?.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${order.photos.map(p=>`<img src="${p}" style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid rgba(255,255,255,0.1);cursor:pointer" onclick="window.open('${p}','_blank')">`).join("")}</div>`:""}
+          ${order.photos?.length?`
+            <div style="margin-bottom:6px">
+              <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'flex':'none';this.textContent=this.textContent.includes('보기')?'📷 사진 접기':'📷 사진 보기 ('+order.photos.length+'장)'"
+                style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;margin-bottom:6px">
+                📷 사진 보기 (${order.photos.length}장)
+              </button>
+              <div style="display:none;gap:6px;flex-wrap:wrap">
+                ${order.photos.map((p,pi)=>`<img src="${p}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.12);cursor:zoom-in" onclick="window.viewPhoto('${p}')">`).join("")}
+              </div>
+            </div>`:""}
           ${order.status==="취소"&&order.cancelReason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px">취소 사유: ${order.cancelReason}</div>`:""}
           ${order.status==="반려"&&order.rejectReason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px">반려 사유: ${order.rejectReason}</div>`:""}
           <div style="display:flex;flex-wrap:wrap;gap:4px">
