@@ -626,51 +626,30 @@ window.confirmAddItem=async()=>{
 // 구글 시트 기록
 async function logToSheet(order){
   try{
-    const now = new Date();
-    const date = now.toLocaleDateString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\. /g,"/").replace(".","");
-    const time = now.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
-    const payload = {
-      date, time,
-      storeName: order.storeName||"",
-      reason: order.reason||"",
-      handler: order.handler||"",
-      status: order.status||"출고완료",
-      items: (order.items||[]).map(it=>({
-        collection: it.collection||"",
-        itemName: it.itemName||"",
-        optName: it.optName||"",
-        qty: it.qty||0,
-        unit: it.unit||"개"
+    const now=new Date();
+    const date=now.toLocaleDateString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit"});
+    const time=now.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+    const payload={
+      date,time,
+      storeName:order.storeName||"",
+      reason:order.reason||"",
+      handler:order.handler||"",
+      status:order.status||"출고완료",
+      items:(order.items||[]).map(it=>({
+        collection:it.collection||"",
+        itemName:it.itemName||"",
+        optName:it.optName||"",
+        qty:it.qty||0,
+        unit:it.unit||"개"
       }))
     };
-    // Apps Script는 리디렉션이 있어서 form 방식으로 전송
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = SHEET_URL;
-    form.target = "_blank";
-    form.style.display = "none";
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = "payload";
-    input.value = JSON.stringify(payload);
-    form.appendChild(input);
-    document.body.appendChild(form);
-
-    // fetch로 시도, 실패하면 무시 (no-cors라 응답 못 받아도 서버에는 전달됨)
-    try{
-      await fetch(SHEET_URL+"?data="+encodeURIComponent(JSON.stringify(payload)),{
-        method:"GET",mode:"no-cors"
-      });
-    }catch(_){}
-    // 백업: POST도 시도
-    fetch(SHEET_URL,{
-      method:"POST",mode:"no-cors",
-      body:JSON.stringify(payload)
-    }).catch(()=>{});
-    document.body.removeChild(form);
-    console.log("시트 기록 시도 완료:", payload);
+    // GET 방식으로 전송 (CORS 문제 없음)
+    const url=SHEET_URL+"?data="+encodeURIComponent(JSON.stringify(payload));
+    const res=await fetch(url,{method:"GET",mode:"cors"});
+    const result=await res.json();
+    console.log("시트 기록 완료:", result);
   }catch(e){
-    console.error("시트 기록 오류:", e);
+    console.error("시트 기록 오류:", e.message);
   }
 }
 
