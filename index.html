@@ -238,7 +238,7 @@ body.light #loading{background:#f5f5f7}
 
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import{getFirestore,collection,doc,setDoc,addDoc,onSnapshot,query,orderBy,serverTimestamp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import{getFirestore,collection,doc,setDoc,addDoc,deleteDoc,onSnapshot,query,orderBy,serverTimestamp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const db=getFirestore(initializeApp({
   apiKey:"AIzaSyBHWNK9K1Ack5-Sj02PAuVbCu2gcOSnpMY",
@@ -629,7 +629,7 @@ window.viewPhoto=src=>{
   overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;cursor:zoom-out";
   overlay.innerHTML=`
     <div style="position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;color:#fff">✕</div>
-    <img src="${src}" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+    <img src="${src}" style="max-width:70vw;max-height:70vh;object-fit:contain;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,0.5)">
     <div style="position:absolute;bottom:16px;font-size:12px;color:rgba(255,255,255,0.4)">클릭하면 닫혀요</div>
   `;
   overlay.addEventListener("click",()=>overlay.remove());
@@ -982,8 +982,7 @@ function renderOrders(){
 window.deleteOrder=async(orderId)=>{
   if(!confirm("이 출고요청을 완전히 삭제할까요?\n삭제하면 되돌릴 수 없어요."))return;
   try{
-    const {deleteDoc,doc:fbDoc}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-    await deleteDoc(fbDoc(db,"orders",orderId));
+    await deleteDoc(doc(collection(db,"orders"),orderId));
     showToast("🗑️ 삭제됐어요.");
   }catch(e){showToast("오류: "+e.message,"#f87171");}
 };
