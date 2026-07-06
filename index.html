@@ -623,6 +623,38 @@ window.confirmAddItem=async()=>{
   }catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
+// 구글 시트 기록
+async function logToSheet(order){
+  try{
+    const now = new Date();
+    const date = now.toLocaleDateString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit"}).replace(/\. /g,"/").replace(".","");
+    const time = now.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+    const payload = {
+      date, time,
+      storeName: order.storeName||"",
+      reason: order.reason||"",
+      handler: order.handler||"",
+      status: order.status||"출고완료",
+      items: (order.items||[]).map(it=>({
+        collection: it.collection||"",
+        itemName: it.itemName||"",
+        optName: it.optName||"",
+        qty: it.qty||0,
+        unit: it.unit||"개"
+      }))
+    };
+    await fetch(SHEET_URL, {
+      method:"POST",
+      mode:"no-cors",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    });
+    console.log("시트 기록 완료");
+  }catch(e){
+    console.error("시트 기록 오류:", e);
+  }
+}
+
 // 사진 확대 보기
 window.viewPhoto=src=>{
   const overlay=document.createElement("div");
@@ -637,6 +669,7 @@ window.viewPhoto=src=>{
 };
 
 const HANDLERS = ["에이도스 스튜디오", "조수연"];
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbz9m-fRC-VM-mbwTlIVcb9HVl0Ff6LHwy5NeyP7vedyzw1PUzhPDAYREcgPE7CtUi-G/exec";
 
 // 담당자 선택 UI 생성
 function handlerSelectHTML(){
@@ -704,6 +737,10 @@ window.confirmApprove=async(orderId)=>{
     await setDoc(doc(collection(db,"orders"),orderId),{...order,status:newStatus,handler,handledAt:new Date().toISOString()},{merge:false});
     document.getElementById("approve-modal")?.remove();
     showToast(isApproveOnly?`✅ ${handler}님이 승인했어요.`:`✅ ${handler}님이 출고완료 처리했어요. 재고가 차감됐어요.`);
+    // 출고완료 시 구글 시트에 기록
+    if(!isApproveOnly){
+      logToSheet({...order, status:"출고완료", handler});
+    }
   }catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
