@@ -718,12 +718,20 @@ window.confirmOrderEdit=async()=>{
 function renderOrders(){
   const notice=getNoticeBanner();
   const editable=canEdit();
+  const currentWeek=getWeekLabel(new Date().toISOString());
   const grouped={};
   orders.forEach(o=>{
     const lbl=o.weekLabel||getWeekLabel(o.date||new Date().toISOString());
     if(!grouped[lbl])grouped[lbl]=[];
     grouped[lbl].push(o);
   });
+  // 지난 주 자동 접기 (최초 1회)
+  if(!collapsedWeeks.has("__init__")){
+    Object.keys(grouped).forEach(week=>{
+      if(week!==currentWeek) collapsedWeeks.add(week.replace(/\//g,"_"));
+    });
+    collapsedWeeks.add("__init__");
+  }
   const el=document.getElementById("orders-list");
 
   // 안내 배너
