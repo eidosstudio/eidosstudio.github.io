@@ -409,7 +409,7 @@ window.openCheckout=()=>{
 
 // 사진 미리보기 (최대 3장, 자동 압축)
 let orderPhotosBase64=[];
-function compressImage(file, maxW=800, quality=0.7){
+function compressImage(file, maxW=1600, quality=0.9){
   return new Promise(resolve=>{
     const reader=new FileReader();
     reader.onload=e=>{
