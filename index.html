@@ -754,24 +754,14 @@ window.confirmApprove=async(orderId)=>{
   const handler=getSelectedHandler();
   if(!handler){showToast("담당자를 선택해주세요","#f87171");return;}
   const order=orders.find(o=>o.id===orderId);if(!order)return;
-  // 검토중 → 승인: 재고 차감 없음
-  // 승인/준비중 → 출고완료: 재고 차감
+  // 재고는 발주 요청 시 이미 차감됨 → 여기서는 차감 없음
   const isApproveOnly = order.status==="검토중"||order.status==="반려";
-  if(!isApproveOnly){
-    for(const it of order.items){
-      const item=items.find(i=>i.id===it.itemId);if(!item)continue;
-      const clone=JSON.parse(JSON.stringify(item));
-      if(it.optName&&clone.options){const o=clone.options.find(x=>x.name===it.optName);if(o)o.quantity=Math.max(0,(o.quantity||0)-it.qty);}
-      else clone.quantity=Math.max(0,(clone.quantity||0)-it.qty);
-      try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
-    }
-  }
   const newStatus = isApproveOnly?"승인":"출고완료";
   try{
     await setDoc(doc(collection(db,"orders"),orderId),{...order,status:newStatus,handler,handledAt:new Date().toISOString()},{merge:false});
     document.getElementById("approve-modal")?.remove();
-    showToast(isApproveOnly?`✅ ${handler}님이 승인했어요.`:`✅ ${handler}님이 출고완료 처리했어요. 재고가 차감됐어요.`);
-    // 출고완료 시 구글 시트에 기록
+    showToast(isApproveOnly?`✅ ${handler}님이 승인했어요.`:`✅ ${handler}님이 출고완료 처리했어요.`);
+    // 출고완료 시 구글 시트에 기록 (재고 차감은 발주 시점에 이미 됨)
     if(!isApproveOnly){
       logToSheet({...order, status:"출고완료", handler});
     }
@@ -872,13 +862,17 @@ window.confirmCancel=async(orderId)=>{
   const reason=document.getElementById("cancel-reason")?.value.trim();
   if(!reason){showToast("취소 사유를 입력해주세요","#f87171");return;}
   const order=orders.find(o=>o.id===orderId);if(!order)return;
-  // 수량 복원
-  for(const it of order.items){
-    const item=items.find(i=>i.id===it.itemId);if(!item)continue;
-    const clone=JSON.parse(JSON.stringify(item));
-    if(it.optName&&clone.options){const o=clone.options.find(x=>x.name===it.optName);if(o)o.quantity=(o.quantity||0)+it.qty;}
-    else clone.quantity=(clone.quantity||0)+it.qty;
-    try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
+  // 출고완료 건은 이미 출고됐으므로 재고 복원 안 함
+  // 검토중/승인/준비중 건만 복원 (발주 시 차감됐으므로)
+  const cancelableStatuses = ["검토중","승인","준비중","반려"];
+  if(cancelableStatuses.includes(order.status)){
+    for(const it of order.items){
+      const item=items.find(i=>i.id===it.itemId);if(!item)continue;
+      const clone=JSON.parse(JSON.stringify(item));
+      if(it.optName&&clone.options){const o=clone.options.find(x=>x.name===it.optName);if(o)o.quantity=(o.quantity||0)+it.qty;}
+      else clone.quantity=(clone.quantity||0)+it.qty;
+      try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
+    }
   }
   try{
     await setDoc(doc(collection(db,"orders"),orderId),{...order,status:"취소",cancelReason:reason,canceledAt:new Date().toISOString()});
