@@ -195,11 +195,23 @@ body.light #loading{background:#f5f5f7}
       <input class="field-input" id="store-name" placeholder="예: 신세계 강남점">
     </div>
     <div class="field-wrap">
-      <div class="field-label">요청 사유 * <span style="font-size:10px;color:#475569">(파손/부족 등 구체적으로)</span></div>
-      <textarea class="field-input" id="order-reason" rows="3" placeholder="예: 전시용 SET1 PLATE 파손으로 교체 필요" style="resize:none;line-height:1.5"></textarea>
+      <div class="field-label">요청 유형 *</div>
+      <div style="display:flex;gap:8px;margin-bottom:4px">
+        <label id="type-label-파손" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all .15s">
+          <input type="radio" name="order-type" value="파손" style="accent-color:#ef4444" onchange="onOrderTypeChange()"> 🔴 파손
+        </label>
+        <label id="type-label-부족" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all .15s">
+          <input type="radio" name="order-type" value="부족" style="accent-color:#fbbf24" onchange="onOrderTypeChange()"> 🟡 부족
+        </label>
+      </div>
+      <div id="type-notice" style="font-size:11px;color:#475569;margin-top:4px"></div>
     </div>
     <div class="field-wrap">
-      <div class="field-label">파손 사진 <span style="font-size:10px;color:#475569">(선택)</span></div>
+      <div class="field-label">상세 사유 * <span style="font-size:10px;color:#475569">(구체적으로)</span></div>
+      <textarea class="field-input" id="order-reason" rows="2" placeholder="예: 전시용 SET1 PLATE 낙하로 파손" style="resize:none;line-height:1.5"></textarea>
+    </div>
+    <div class="field-wrap" id="photo-wrap">
+      <div class="field-label">파손 사진 <span id="photo-required-label" style="font-size:10px;color:#475569">(선택)</span></div>
       <div id="photo-preview-wrap" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
       <label style="display:flex;align-items:center;gap:8px;padding:10px 13px;border-radius:10px;cursor:pointer;font-size:13px;border:1.5px dashed rgba(255,255,255,0.15)">
         <span>📷 사진 추가 <span style="font-size:10px;color:#475569">(최대 3장)</span></span>
@@ -405,8 +417,48 @@ window.openCheckout=()=>{
     +`<div style="border-top:1px solid rgba(128,128,128,0.15);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-size:12px">
       <span style="color:#475569">총 수량</span><span style="font-weight:800;color:#6366f1">${total}개</span></div>`;
   document.getElementById("store-name").value="";
+  // 라디오 초기화
+  document.querySelectorAll('input[name="order-type"]').forEach(r=>r.checked=false);
+  const notice=document.getElementById("type-notice");
+  if(notice) notice.textContent="";
+  ["파손","부족"].forEach(t=>{
+    const lbl=document.getElementById("type-label-"+t);
+    if(lbl){lbl.style.borderColor="rgba(255,255,255,0.1)";lbl.style.background="rgba(255,255,255,0.04)";}
+  });
   document.getElementById("checkout-modal").style.display="flex";
   setTimeout(()=>document.getElementById("store-name").focus(),100);
+};
+
+// 요청 유형 변경 핸들러
+window.onOrderTypeChange=()=>{
+  const type=document.querySelector('input[name="order-type"]:checked')?.value;
+  const notice=document.getElementById("type-notice");
+  const reqLabel=document.getElementById("photo-required-label");
+  const photoWrap=document.getElementById("photo-wrap");
+
+  // 라벨 스타일 업데이트
+  ["파손","부족"].forEach(t=>{
+    const lbl=document.getElementById("type-label-"+t);
+    if(lbl){
+      if(t===type){
+        lbl.style.borderColor=t==="파손"?"#ef4444":"#fbbf24";
+        lbl.style.background=t==="파손"?"rgba(239,68,68,0.1)":"rgba(251,191,36,0.1)";
+      } else {
+        lbl.style.borderColor="rgba(255,255,255,0.1)";
+        lbl.style.background="rgba(255,255,255,0.04)";
+      }
+    }
+  });
+
+  if(type==="파손"){
+    if(notice) notice.innerHTML="<span style='color:#ef4444'>⚠️ 파손 사진 첨부 필수</span>";
+    if(reqLabel) reqLabel.innerHTML="<span style='color:#ef4444'>* 필수</span>";
+  } else if(type==="부족"){
+    if(notice) notice.textContent="사진 첨부 없이 요청 가능해요";
+    if(reqLabel) reqLabel.textContent="(선택)";
+  } else {
+    if(notice) notice.textContent="";
+  }
 };
 
 // 사진 미리보기 (최대 3장, 자동 압축)
@@ -453,14 +505,18 @@ window.previewPhotos=async()=>{
 
 window.confirmOrder=async()=>{
   const storeName=document.getElementById("store-name").value.trim();
+  const orderType=document.querySelector('input[name="order-type"]:checked')?.value;
   const reason=document.getElementById("order-reason").value.trim();
   if(!storeName){showToast("매장명을 입력해주세요","#f87171");return;}
-  if(!reason){showToast("요청 사유를 입력해주세요","#f87171");return;}
+  if(!orderType){showToast("요청 유형을 선택해주세요 (파손/부족)","#f87171");return;}
+  if(!reason){showToast("상세 사유를 입력해주세요","#f87171");return;}
+  if(orderType==="파손"&&orderPhotosBase64.length===0){showToast("파손 사진을 첨부해주세요 📷","#f87171");return;}
   // 발주 저장 (재고 차감 없음 - 관리자 승인 후 차감)
   try{
     await addDoc(collection(db,"orders"),{
       storeName,status:"검토중",
-      reason,
+      orderType:orderType||"",
+      reason:`[${orderType}] ${reason}`,
       photos:orderPhotosBase64,
       weekLabel:getWeekLabel(new Date().toISOString()),
       createdAt:serverTimestamp(),
