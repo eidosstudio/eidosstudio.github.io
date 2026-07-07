@@ -491,7 +491,10 @@ function renderStock(){
           ${low?`<div class="low-mask"></div>`:""}
         </div>
         <div class="item-body">
-          <div class="item-name">${item.name}</div>
+          <div class="item-name" style="display:flex;align-items:center;gap:4px">
+            ${item.name}
+            <button onclick="window.openItemNameModal('${item.id}','${nm}')" style="padding:1px 5px;border-radius:4px;font-size:9px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️</button>
+          </div>
           ${item.material?`<div class="item-sub">${item.material}</div>`:""}
           ${item.size?`<div class="item-sub" style="color:#6366f1;opacity:.85">${item.size}</div>`:""}
           <div class="item-qty" style="color:${low?"#ef4444":(isDark?"#e2e8f0":"#111827")}">${qty}<span class="unit"> ${item.unit||"개"}</span></div>
@@ -552,6 +555,37 @@ window.removeFromCart=i=>{cart.splice(i,1);updateCartBadge();renderCart();};
 window.clearCart=()=>{cart=[];updateCartBadge();renderCart();};
 
 
+
+// ── 상품명 수정 모달 ──
+window.openItemNameModal=(itemId,currentName)=>{
+  const modal=document.createElement("div");modal.className="modal-bg";modal.id="item-name-modal";
+  modal.innerHTML=`<div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">상품명 수정</div>
+    <div class="field-wrap">
+      <div class="field-label">현재 이름</div>
+      <div style="font-size:14px;font-weight:700;color:#6366f1;margin-bottom:12px">${currentName}</div>
+      <div class="field-label">새 이름 *</div>
+      <input id="item-name-input" class="field-input" value="${currentName.replace(/"/g,'&quot;')}"
+        onkeydown="if(event.key==='Enter')window.confirmItemName('${itemId}')">
+    </div>
+    <button class="btn-primary" onclick="window.confirmItemName('${itemId}')">저장</button>
+    <button class="btn-secondary-sm" onclick="document.getElementById('item-name-modal').remove()">취소</button>
+  </div>`;
+  modal.addEventListener("click",e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
+  setTimeout(()=>{const inp=document.getElementById("item-name-input");inp?.focus();inp?.select();},100);
+};
+window.confirmItemName=async(itemId)=>{
+  const newName=document.getElementById("item-name-input")?.value.trim();
+  if(!newName){showToast("상품명을 입력해주세요","#f87171");return;}
+  const item=items.find(i=>i.id===itemId);if(!item)return;
+  try{
+    await setDoc(doc(collection(db,"items"),itemId),{...item,name:newName});
+    document.getElementById("item-name-modal")?.remove();
+    showToast("✅ 상품명이 수정됐어요!");
+  }catch(e){showToast("오류: "+e.message,"#f87171");}
+};
 
 // ── 상품 추가 모달 ──
 let addOptList=[];
