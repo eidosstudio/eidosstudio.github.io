@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="GM 재고">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="/manifest-admin.json">
 <title>재고관리 (관리자)</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet">
 <style>
@@ -266,13 +266,17 @@ function totalQty(i){
 }
 function isLow(i){return totalQty(i)<10;}
 function getWeekLabel(dateStr){
-  const d=new Date(dateStr),day=d.getDay();
-  const diff=(day-3+7)%7;
-  const wed=new Date(d);wed.setDate(d.getDate()-diff);
-  const tue=new Date(wed);tue.setDate(wed.getDate()+6);
+  const d=new Date(dateStr);
+  const day=d.getDay(); // 0=일,1=월,...,6=토
+  // 토(6),일(0)은 다음 주 월요일로 집계
+  const mon=new Date(d);
+  if(day===0) mon.setDate(d.getDate()+1);       // 일→다음월
+  else if(day===6) mon.setDate(d.getDate()+2);  // 토→다음월
+  else mon.setDate(d.getDate()-(day-1));         // 월~금→이번주월
+  const fri=new Date(mon);fri.setDate(mon.getDate()+4);
   const fmt=dt=>`${dt.getMonth()+1}/${dt.getDate()}`;
   const days=["일","월","화","수","목","금","토"];
-  return `${fmt(wed)}(${days[wed.getDay()]})~${fmt(tue)}(${days[tue.getDay()]})`;
+  return `${fmt(mon)}(${days[mon.getDay()]})~${fmt(fri)}(${days[fri.getDay()]})`;
 }
 function nowTime(){return new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});}
 function todayDate(){return new Date().toISOString().slice(0,10);}
@@ -955,7 +959,7 @@ function renderOrders(){
         <span style="font-size:11px;color:#475569;margin-left:6px">${collapsedWeeks.has(week.replace(/[/]/g,"_"))?"▶":"▼"}</span>
       </div>
       ${collapsedWeeks.has(week.replace(/[/]/g,"_"))?"":(`<div class="week-cycle">
-        ${[{l:"수~금",d:"주문 접수",c:"#8b5cf6"},{l:"월",d:"준비·택배접수",c:"#3b82f6"},{l:"화",d:"발송",c:"#10b981"}].map(s=>
+        ${[{l:"월~금",d:"주문 접수",c:"#8b5cf6"},{l:"월",d:"준비·택배접수",c:"#3b82f6"},{l:"화",d:"발송",c:"#10b981"}].map(s=>
           `<div class="cycle-badge"><span style="font-weight:700;color:${s.c};padding:1px 6px;border-radius:99px;background:${s.c}20">${s.l}</span><span style="color:${isDark?"#475569":"#6b7280"};font-size:10px">${s.d}</span></div>`
         ).join("")}
       </div>
