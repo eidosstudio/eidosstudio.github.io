@@ -465,6 +465,31 @@ window.onOrderTypeChange=()=>{
   }
 };
 
+// 늦은 접수 안내 모달
+function showLateOrderModal(shipDate){
+  const modal=document.createElement("div");
+  modal.className="modal-bg";modal.id="late-order-modal";
+  modal.innerHTML=`<div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:36px;margin-bottom:8px">⏰</div>
+      <div style="font-weight:800;font-size:16px;margin-bottom:8px">늦은 접수 안내</div>
+    </div>
+    <div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7;text-align:center">
+      지금은 <strong style="color:#fbbf24">금요일 오후 6시 이후 / 주말</strong>이에요.<br>
+      이 주문은 <strong>다음 주 주차로 집계</strong>되어<br>
+      <strong style="color:#34d399;font-size:15px">${shipDate}</strong>에 발송됩니다.<br><br>
+      <span style="font-size:11px;color:#475569">2주 후 발송을 원하지 않으시면<br>다음 주 월~금에 다시 접수해 주세요.</span>
+    </div>
+    <button onclick="document.getElementById('late-order-modal').remove();window.confirmOrder(true);"
+      class="btn-primary" style="margin-bottom:8px">✅ 동의하고 발주하기</button>
+    <button onclick="document.getElementById('late-order-modal').remove();window.switchTab('cart');"
+      class="btn-secondary-sm">← 장바구니로 돌아가기</button>
+  </div>`;
+  modal.addEventListener("click",e=>{if(e.target===modal){modal.remove();switchTab('cart');}});
+  document.body.appendChild(modal);
+}
+
 // 사진 미리보기 (최대 3장, 자동 압축)
 let orderPhotosBase64=[];
 function compressImage(file, maxW=1600, quality=0.9){
@@ -507,7 +532,7 @@ window.previewPhotos=async()=>{
   document.getElementById("photo-count-label") && (document.getElementById("photo-count-label").textContent=`${files.length}장 선택됨`);
 };
 
-window.confirmOrder=async()=>{
+window.confirmOrder=async(skipLateCheck=false)=>{
   const storeName=document.getElementById("store-name").value.trim();
   const orderType=document.querySelector('input[name="order-type"]:checked')?.value;
   const reason=document.getElementById("order-reason").value.trim();
@@ -515,6 +540,13 @@ window.confirmOrder=async()=>{
   if(!orderType){showToast("요청 유형을 선택해주세요 (파손/부족)","#f87171");return;}
   if(!reason){showToast("상세 사유를 입력해주세요","#f87171");return;}
   if(orderType==="파손"&&orderPhotosBase64.length===0){showToast("파손 사진을 첨부해주세요 📷","#f87171");return;}
+
+  // 늦은 접수 경고 팝업
+  if(!skipLateCheck && isLateOrder()){
+    const shipDate=getLateShipDate();
+    showLateOrderModal(shipDate);
+    return;
+  }
   // 발주 저장 (재고 차감 없음 - 관리자 승인 후 차감)
   try{
     await addDoc(collection(db,"orders"),{
@@ -647,6 +679,34 @@ function renderCart(){
 }
 window.removeFromCart=i=>{cart.splice(i,1);updateCartBadge();renderCart();};
 window.clearCart=()=>{cart=[];updateCartBadge();renderCart();};
+
+// ── 늦은 접수 여부 확인 (금 18시 이후 ~ 일요일) ──
+function isLateOrder(){
+  const now=new Date();
+  const day=now.getDay(); // 0=일,1=월,...,6=토
+  const hour=now.getHours();
+  // 금요일 18시 이후
+  if(day===5&&hour>=18) return true;
+  // 토요일 전체
+  if(day===6) return true;
+  // 일요일 전체
+  if(day===0) return true;
+  return false;
+}
+
+// 늦은 접수 시 발송 예정일 계산
+function getLateShipDate(){
+  const now=new Date();
+  const day=now.getDay();
+  // 다음 주 월요일 찾기
+  const nextMon=new Date(now);
+  if(day===5) nextMon.setDate(now.getDate()+3);      // 금→다음월
+  else if(day===6) nextMon.setDate(now.getDate()+2); // 토→다음월
+  else if(day===0) nextMon.setDate(now.getDate()+1); // 일→다음월
+  // 그 다음 주 화요일 (다음 월요일 + 8일)
+  const shipTue=new Date(nextMon);shipTue.setDate(nextMon.getDate()+8);
+  return `${shipTue.getMonth()+1}/${shipTue.getDate()}(화)`;
+}
 
 // ── 수정 가능 여부 확인 ──
 function canEdit(){
