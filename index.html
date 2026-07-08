@@ -958,7 +958,19 @@ function renderOrders(){
         <span style="margin-left:auto;font-size:10px;color:#3b82f6">${wOrders.length}건</span>
         <span style="font-size:11px;color:#475569;margin-left:6px">${collapsedWeeks.has(week.replace(/[/]/g,"_"))?"▶":"▼"}</span>
       </div>
-      ${collapsedWeeks.has(week.replace(/[/]/g,"_"))?"":(`<div class="week-cycle">
+      ${collapsedWeeks.has(week.replace(/[/]/g,"_"))?"":(`
+      <div style="padding:7px 14px;font-size:11px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.06);border-left:1px solid rgba(52,211,153,0.2);border-right:1px solid rgba(52,211,153,0.2)">
+        📦 이 주 주문은 ${(()=>{
+          // 주차 레이블에서 월요일 날짜 추출해서 차주 화요일 계산
+          const parts=week.match(/(\d+)\/(\d+)/);
+          if(!parts)return "차주 화요일";
+          const now=new Date();
+          const mon=new Date(now.getFullYear(),parseInt(parts[1])-1,parseInt(parts[2]));
+          const tue=new Date(mon);tue.setDate(mon.getDate()+8);
+          return `${tue.getMonth()+1}/${tue.getDate()}(화)`;
+        })()} 발송 예정이에요
+      </div>
+      <div class="week-cycle">
         ${[{l:"월~금",d:"주문 접수",c:"#8b5cf6"},{l:"월",d:"준비·택배접수",c:"#3b82f6"},{l:"화",d:"발송",c:"#10b981"}].map(s=>
           `<div class="cycle-badge"><span style="font-weight:700;color:${s.c};padding:1px 6px;border-radius:99px;background:${s.c}20">${s.l}</span><span style="color:${isDark?"#475569":"#6b7280"};font-size:10px">${s.d}</span></div>`
         ).join("")}
