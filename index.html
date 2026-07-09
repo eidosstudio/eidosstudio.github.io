@@ -983,8 +983,8 @@ function renderOrders(){
   }
 
   const el=document.getElementById("orders-list");
-  if(!Object.keys(grouped).length){
-    el.innerHTML=`<div style="text-align:center;padding:60px 20px;font-size:14px;color:#475569">출고 요청 내역이 없어요</div>`;return;
+  if(!Object.keys(weekGrouped).length){
+    el.innerHTML=banner+`<div style="text-align:center;padding:40px 20px;font-size:14px;color:#475569">출고 요청 내역이 없어요</div>`;return;
   }
   el.innerHTML=banner+Object.entries(yearGrouped).map(([yKey,yData])=>{
     const yCol=collapsedYears.has(yKey);
