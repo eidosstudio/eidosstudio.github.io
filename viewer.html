@@ -389,11 +389,17 @@ window.confirmAddToCart=()=>{
   let stock=0;
   if(cartSelOpt&&cartTarget.options){const o=cartTarget.options.find(x=>x.name===cartSelOpt);stock=o?.quantity||0;}
   else stock=totalQty(cartTarget);
-  if(qty>stock){showToast(`재고 부족! 현재 ${stock}개`,"#f87171");return;}
+  if(qty>stock){showToast(`보유 재고보다 수량이 많습니다 (현재 재고: ${stock}개)`, "#f87171");return;}
   const key=cartTarget.id+(cartSelOpt||"");
   const existing=cart.find(c=>c.key===key);
-  if(existing)existing.qty+=qty;
-  else cart.push({key,itemId:cartTarget.id,itemName:cartTarget.name,optName:cartSelOpt,collection:cartTarget.collection,qty,unit:cartTarget.unit||"개"});
+  if(existing){
+    // 합산 시 재고 초과 체크
+    let stock2=0;
+    if(cartSelOpt&&cartTarget.options){const o2=cartTarget.options.find(x=>x.name===cartSelOpt);stock2=o2?.quantity||0;}
+    else stock2=totalQty(cartTarget);
+    if(existing.qty+qty>stock2){showToast(`보유 재고보다 수량이 많습니다 (현재 재고: ${stock2}개)`,"#f87171");return;}
+    existing.qty+=qty;
+  } else cart.push({key,itemId:cartTarget.id,itemName:cartTarget.name,optName:cartSelOpt,collection:cartTarget.collection,qty,unit:cartTarget.unit||"개"});
   closeModal("cart-modal");
   updateCartBadge();
   showToast(`🛒 ${cartTarget.name}${cartSelOpt?` [${cartSelOpt}]`:""} ${qty}개 담았어요`);
@@ -814,11 +820,11 @@ window.confirmOrderEdit=async()=>{
     if(it.optName&&clone.options){
       const o=clone.options.find(x=>x.name===it.optName);
       if(o){
-        if(diff>0&&o.quantity<diff){showToast(`재고 부족! 추가 가능 수량: ${o.quantity}개`,"#f87171");return;}
+        if(diff>0&&o.quantity<diff){showToast(`보유 재고보다 수량이 많습니다 (추가 가능: ${o.quantity}개)`,"#f87171");return;}
         o.quantity=Math.max(0,o.quantity-diff);
       }
     }else{
-      if(diff>0&&clone.quantity<diff){showToast(`재고 부족! 추가 가능 수량: ${clone.quantity}개`,"#f87171");return;}
+      if(diff>0&&clone.quantity<diff){showToast(`보유 재고보다 수량이 많습니다 (추가 가능: ${clone.quantity}개)`,"#f87171");return;}
       clone.quantity=Math.max(0,(clone.quantity||0)-diff);
     }
     try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
