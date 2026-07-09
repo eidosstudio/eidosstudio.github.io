@@ -366,10 +366,23 @@ window.openCartModal=(itemId)=>{
 function renderCartOptWrap(){
   const wrap=document.getElementById("cart-opt-wrap");
   if(!cartTarget?.options?.length){wrap.innerHTML="";return;}
-  wrap.innerHTML=`<div class="field-label" style="margin-bottom:8px">옵션 선택</div><div style="display:flex;flex-wrap:wrap;gap:4px">`
-    +cartTarget.options.map(o=>`<button class="opt-sel-btn${cartSelOpt===o.name?" sel":""}" onclick="selOpt('${o.name.replace(/'/g,"\\'")}')">
-      ${o.name}<span style="font-size:10px;opacity:.7;margin-left:4px">${o.quantity||0}개</span>
-    </button>`).join("")+`</div>`;
+  wrap.innerHTML=`<div class="field-label" style="margin-bottom:8px">옵션 선택</div><div style="display:flex;flex-wrap:wrap;gap:6px">`
+    +cartTarget.options.map(o=>{
+      const isSel=cartSelOpt===o.name;
+      const isLow=(o.quantity||0)<1;
+      return `<button onclick="window.selOpt('${o.name.replace(/'/g,"\'")}') "
+        style="padding:8px 14px;border-radius:10px;font-size:12px;font-weight:${isSel?700:500};cursor:pointer;
+          border:2px solid ${isSel?"#6366f1":isLow?"rgba(239,68,68,0.3)":"rgba(255,255,255,0.12)"};
+          background:${isSel?"rgba(99,102,241,0.25)":isLow?"rgba(239,68,68,0.05)":"rgba(255,255,255,0.05)"};
+          color:${isSel?"#a5b4fc":isLow?"#f87171":"#94a3b8"};
+          transform:${isSel?"scale(1.03)":"scale(1)"};
+          box-shadow:${isSel?"0 0 0 1px #6366f1":"none"}">
+        ${isSel?"✓ ":""}${o.name}<span style="font-size:10px;margin-left:4px;opacity:.8">${o.quantity||0}개</span>
+      </button>`;
+    }).join("")+`</div>
+    ${cartSelOpt
+      ?`<div style="margin-top:10px;padding:7px 12px;border-radius:8px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);font-size:12px;color:#a5b4fc;font-weight:600">✓ 선택: ${cartSelOpt}</div>`
+      :`<div style="margin-top:8px;font-size:12px;color:#f87171">⚠️ 옵션을 선택해주세요</div>`}`;
 }
 window.selOpt=name=>{cartSelOpt=name;renderCartOptWrap();updateStockLabel();};
 function updateStockLabel(){
