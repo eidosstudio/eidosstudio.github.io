@@ -460,6 +460,10 @@ function renderStock(){
     return`<button class="fbtn ${on}" onclick="window.setFC('${c}')">${c}</button>`;
   }).join("");
 
+  // 옵션 이름 안전하게 저장 (특수문자 대응)
+  window.__opts={};
+  items.forEach(item=>{if(item.options)window.__opts[item.id]=item.options.map(o=>o.name);});
+
   const filtered=items.filter(i=>
     (showLowOnly?isLow(i):true)&&
     (filterYear==="전체"||String(i.year||"")==filterYear)&&
@@ -506,14 +510,15 @@ function renderStock(){
           <div class="item-qty" style="color:${low?"#ef4444":(isDark?"#e2e8f0":"#111827")}">${qty}<span class="unit"> ${item.unit||"개"}</span></div>
         </div>
         ${hasOpts
-          ?`<div class="opts-panel">${item.options.map(o=>{
+          ?`<div class="opts-panel">${item.options.map((o,oi)=>{
               const oLow=(o.quantity||0)<10;
-              const on=o.name.replace(/'/g,"\'");
               return`<div class="opt-row">
                 <span class="opt-name">${o.name}${o.size?`<br><span style="font-size:9px;color:#6366f1;opacity:.8">${o.size}</span>`:""}</span>
                 ${oLow?`<span style="font-size:9px;flex-shrink:0">🔴</span>`:""}
                 <span class="opt-qty" style="color:${oLow?"#ef4444":(isDark?"#e2e8f0":"#111827")};flex-shrink:0">${o.quantity||0}<span class="unit"> ${item.unit||"개"}</span></span>
-                <button onclick="window.openQtyModal('${item.id}','${on}','${nm}',${o.quantity||0})" style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;flex-shrink:0;cursor:pointer">수정</button>
+                <button data-iid="${item.id}" data-oi="${oi}" data-nm="${item.name.replace(/"/g,"&quot;")}" data-qty="${o.quantity||0}"
+                  onclick="(function(b){window.openQtyModal(b.dataset.iid,window.__opts[b.dataset.iid][parseInt(b.dataset.oi)],b.dataset.nm,parseInt(b.dataset.qty))})(this)"
+                  style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;flex-shrink:0;cursor:pointer">수정</button>
               </div>`;}).join("")}</div>`
           :`<div class="card-actions"><button onclick="window.openQtyModal('${item.id}',null,'${nm}',${qty})" style="width:100%;padding:6px 0;border-radius:7px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer">수량 수정</button></div>`}
       </div>`;
@@ -894,8 +899,19 @@ window.openQtyModal=(itemId,optName,itemName,current)=>{
   const modal=document.createElement("div");modal.className="modal-bg";modal.id="qty-modal-dyn";
   modal.innerHTML=`<div class="modal-sheet"><div class="modal-handle"></div>
     <div class="modal-title">${optName?`${itemName} [${optName}]`:itemName} 수량 수정</div>
-    <div style="font-size:22px;font-weight:800;color:#6366f1;margin-bottom:12px">${current}개</div>
-    <div class="field-wrap"><div class="field-label">새 수량</div><input id="qty-new-val" type="number" min="0" value="${current}" class="field-input" onkeydown="if(event.key==='Enter')confirmQtyModal()"></div>
+    <div style="font-size:14px;color:#475569;margin-bottom:16px">현재 수량: <strong style="color:#6366f1">${current}개</strong></div>
+    <div class="field-wrap">
+      <div class="field-label">새 수량</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+        <button onclick="const el=document.getElementById('qty-new-val');el.value=Math.max(0,parseInt(el.value||0)-1)"
+          style="width:40px;height:40px;border-radius:10px;font-size:20px;font-weight:300;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">−</button>
+        <input id="qty-new-val" type="number" min="0" value="${current}" class="field-input"
+          style="text-align:center;font-size:22px;font-weight:800;padding:10px"
+          onkeydown="if(event.key==='Enter')confirmQtyModal()">
+        <button onclick="const el=document.getElementById('qty-new-val');el.value=parseInt(el.value||0)+1"
+          style="width:40px;height:40px;border-radius:10px;font-size:20px;font-weight:300;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">＋</button>
+      </div>
+    </div>
     <button class="btn-primary" onclick="confirmQtyModal()">저장</button>
     <button class="btn-secondary-sm" onclick="document.getElementById('qty-modal-dyn').remove()">취소</button>
   </div>`;
