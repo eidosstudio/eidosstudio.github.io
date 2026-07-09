@@ -986,25 +986,6 @@ function renderOrders(){
   if(!Object.keys(grouped).length){
     el.innerHTML=`<div style="text-align:center;padding:60px 20px;font-size:14px;color:#475569">출고 요청 내역이 없어요</div>`;return;
   }
-  // grouped → yearGrouped로 그룹핑
-  const weekGrouped2={};
-  Object.entries(grouped).forEach(([week,wOrders])=>weekGrouped2[week]=wOrders);
-  const monthGrouped={};
-  Object.entries(weekGrouped2).forEach(([week,wOrders])=>{
-    const parts=week.match(/(\d+)\/(\d+)/);
-    const d=parts?new Date(new Date().getFullYear(),parseInt(parts[1])-1,parseInt(parts[2])):new Date();
-    const mKey=d.getFullYear()+"-"+(d.getMonth()+1);
-    const mLabel=d.getFullYear()+"년 "+(d.getMonth()+1)+"월";
-    if(!monthGrouped[mKey])monthGrouped[mKey]={label:mLabel,weeks:{}};
-    monthGrouped[mKey].weeks[week]=wOrders;
-  });
-  const yearGrouped={};
-  Object.entries(monthGrouped).forEach(([mKey,mData])=>{
-    const yKey=mKey.split("-")[0];
-    if(!yearGrouped[yKey])yearGrouped[yKey]={label:yKey+"년",months:{}};
-    yearGrouped[yKey].months[mKey]=mData;
-  });
-
   el.innerHTML=banner+Object.entries(yearGrouped).map(([yKey,yData])=>{
     const yCol=collapsedYears.has(yKey);
     const yTotal=Object.values(yData.months).reduce((a,m)=>Object.values(m.weeks).reduce((b,w)=>b+w.length,0)+a,0);
