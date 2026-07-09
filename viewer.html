@@ -192,7 +192,7 @@ body.light #loading{background:#f5f5f7}
     <div id="checkout-list" style="border-radius:12px;padding:12px 14px;margin-bottom:14px" class="stat-tile"></div>
     <div class="field-wrap">
       <div class="field-label">매장명 *</div>
-      <input class="field-input" id="store-name" placeholder="예: 신세계 강남점">
+      <input class="field-input" id="store-name" placeholder="매장명 입력 후 선택" autocomplete="off">
     </div>
     <div class="field-wrap">
       <div class="field-label">요청 유형 *</div>
@@ -440,6 +440,7 @@ window.openCheckout=()=>{
     +`<div style="border-top:1px solid rgba(128,128,128,0.15);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-size:12px">
       <span style="color:#475569">총 수량</span><span style="font-weight:800;color:#6366f1">${total}개</span></div>`;
   document.getElementById("store-name").value="";
+  setTimeout(()=>initStoreAutocomplete("store-name"), 50);
   // 라디오 초기화
   document.querySelectorAll('input[name="order-type"]').forEach(r=>r.checked=false);
   const notice=document.getElementById("type-notice");
@@ -507,6 +508,41 @@ function showLateOrderModal(shipDate){
   </div>`;
   modal.addEventListener("click",e=>{if(e.target===modal){modal.remove();switchTab('cart');}});
   document.body.appendChild(modal);
+}
+
+// ── 매장명 자동완성 데이터 ──
+const STORE_LIST = ["하우스 성수 _ KR", "하우스 도산 _ KR", "신사 FS _ KR", "홍대 FS _ KR", "롯데월드타워 (잠실) _ KR", "신세계 스타필드 (하남) _ KR", "롯데 (동탄) _ KR", "현대 (여의도) _ KR", "롯데 (명동) _ KR", "롯데 (서면) _ KR", "신세계 (센텀) _ KR", "신세계 (대구) _ KR", "신세계 (경기) _ KR", "신세계 (의정부) _ KR", "신세계 (명동) _ KR", "신세계 (강남) _ KR", "신세계 (대전) _ KR", "신세계 (광주) _ KR", "현대 (무역) _ KR", "현대 (대구) _ KR", "현대 (판교) _ KR", "갤러리아 (광교) _ KR", "갤러리아 (압구정) _ KR", "롯데 (잠실) _ KR", "신세계 (천안아산) _ KR", "현대 (압구정) _ KR", "갤러리아 (대전) _ KR", "현대 (목동) _ KR", "롯데 소공 면세 _ KR", "롯데 월드타워 면세 _ KR", "신세계 명동 면세 _ KR", "현대 면세 (인천공항 T1) _ KR", "신라 면세 (인청공항 T2) _ KR", "신라 서울 면세 _ KR", "신라 제주 면세 _ KR", "롯데 제주 면세 _ KR", "HAUS SHANGHAI _ CN", "TAIKOO-S BEIJING _ CN", "TAIKOO CHENGDU _ CN", "HANGZHOU TOWER _ CN", "DEJI NANJING _ CN", "SKP BEIJING _ CN", "HANKYU NINGBO _ CN", "TAIKOOLI SHANGHAI _ CN", "SKP CHENGDU _ CN", "MIXC XIAMEN _ CN", "PC GUANGZHOU _ CN", "IFC SHANGHAI _ CN", "TAIKOO GUANGZHOU _ CN", "SKP XIAN _ CN", "MIXC SHENYANG _ CN", "CHANGSHA IFS _ CN", "HANGZHOU MIXC _ CN", "HAUS SHENZHEN _ CN", "HAINAN SANYA _ CN", "CHONGQING MIXC _ CN", "SHANGHAI XINTIANDI _ CN", "SHANGHAI OFFICE _ CN", "NEWYORK _ USA", "LA COSTAMESA _ USA", "LA FS _ USA", "SAN JOSE _ USA", "HOUSTON _ USA", "NEWJERSEY _ USA", "LAS VEGAS _ USA", "USE OFFICE _ USA", "TORONTO _ CANADA", "ION _ SG", "MBS _ SG", "HABOUR CITY _ HK", "CAUSEWAY _ HK", "BREEZE TAIWAN _ TW", "THAICHUNG _ TW", "THE DUBAI MALL _ DUBAI", "SYDNEY AIR _ AUS", "MELBOURNE _ AUS", "DAVID JONES _ AUS", "BLUEBELL OFFICE _ AUS", "SELFIDGE LONDON _ UK", "10CC _ ITALY", "EMQUARTIER _ THAI", "SIAM-PARAGON _ THAI", "ICON SIAM _ THAI", "SHANGRI-LA _ PHILIPPINES", "TRX _ MAL", "KLCC _ MAL", "OSAKA HANKYU _ JP", "TOKYO AOYAMA _ JP", "TOKYO HANKYU _ JP", "TOKYO GINZA _ JP", "TOKYO HARAJUKU _ JP", "OSAKA PARCO _ JP", "PARIS _ FR"];
+
+function initStoreAutocomplete(inputId){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+
+  // 드롭다운 컨테이너 생성
+  const wrap = input.parentElement;
+  wrap.style.position = "relative";
+  const dropdown = document.createElement("div");
+  dropdown.id = inputId + "-dropdown";
+  dropdown.style.cssText = "position:absolute;top:100%;left:0;right:0;background:#1e2235;border:1px solid rgba(99,102,241,0.3);border-radius:10px;max-height:200px;overflow-y:auto;z-index:999;display:none;box-shadow:0 8px 24px rgba(0,0,0,0.4)";
+  wrap.appendChild(dropdown);
+
+  input.addEventListener("input", ()=>{
+    const q = input.value.trim().toLowerCase();
+    if(!q){ dropdown.style.display="none"; return; }
+    const matches = STORE_LIST.filter(s => s.toLowerCase().includes(q));
+    if(!matches.length){ dropdown.style.display="none"; return; }
+    dropdown.innerHTML = matches.slice(0,8).map(s=>
+      `<div onclick="document.getElementById('${inputId}').value='${s.replace(/'/g,"\'")}';document.getElementById('${inputId}-dropdown').style.display='none'"
+        style="padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05)"
+        onmouseover="this.style.background='rgba(99,102,241,0.15)'"
+        onmouseout="this.style.background=''">${s}</div>`
+    ).join("");
+    dropdown.style.display="block";
+  });
+
+  // 외부 클릭 시 드롭다운 닫기
+  document.addEventListener("click", e=>{
+    if(!wrap.contains(e.target)) dropdown.style.display="none";
+  });
 }
 
 // 사진 미리보기 (최대 3장, 자동 압축)
