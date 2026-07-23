@@ -987,6 +987,41 @@ window.openPhoto=(id)=>{photoTargetId=id;photoInput.click();};
 
 
 // ── 렌더 출고요청 ──
+// 출고 지시서 출력
+window.printOrder=(orderId)=>{
+  const order=orders.find(o=>o.id===orderId);
+  if(!order)return;
+  const rows=order.items.map(it=>{
+    const item=items.find(i=>i.id===it.itemId)||{};
+    let size="-",material="-";
+    if(it.optName&&item.options){const opt=item.options.find(o=>o.name===it.optName);size=opt?.size||item.size||"-";}
+    else size=item.size||"-";
+    material=item.material||"-";
+    return {collection:it.collection||"-",name:it.itemName||"-",opt:it.optName||"-",size,material,qty:it.qty,unit:it.unit||"개"};
+  });
+  const now=new Date();
+  const dateStr=now.getFullYear()+"."+(now.getMonth()+1).toString().padStart(2,"0")+"."+now.getDate().toString().padStart(2,"0");
+  const win=window.open("","_blank","width=820,height=680");
+  win.document.write("<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>출고 지시서 - "+order.storeName+"</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;padding:40px;color:#111;font-size:13px}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:14px;border-bottom:2px solid #111}.title{font-size:22px;font-weight:800}.meta{text-align:right;font-size:11px;color:#555;line-height:1.9}.info-row{display:flex;gap:36px;margin-bottom:22px}.info-item{display:flex;flex-direction:column;gap:3px}.info-label{font-size:10px;color:#666;font-weight:700;text-transform:uppercase}.info-value{font-size:14px;font-weight:700}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:#111;color:#fff;padding:9px 12px;font-size:11px;font-weight:700;text-align:left}td{padding:9px 12px;border-bottom:1px solid #e5e7eb;font-size:12px}tr:nth-child(even) td{background:#f9fafb}.sign-area{display:flex;gap:32px;margin-top:30px}.sign-box{flex:1;border-top:1px solid #111;padding-top:8px;font-size:11px;color:#666;text-align:center;padding-bottom:40px}.footer{margin-top:20px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:11px;color:#888}@media print{button{display:none!important}body{padding:20px}}</style></head><body>");
+  win.document.write("<div class='header'><div><div class='title'>출고 지시서</div><div style='font-size:11px;color:#666;margin-top:3px'>DELIVERY ORDER</div></div><div class='meta'><div>발행일: "+dateStr+"</div><div>상태: "+order.status+"</div>"+(order.handler?"<div style='font-weight:700;margin-top:2px'>"+order.handler+"</div>":"")+"</div></div>");
+  win.document.write("<div class='info-row'><div class='info-item'><div class='info-label'>매장명</div><div class='info-value'>"+order.storeName+"</div></div><div class='info-item'><div class='info-label'>요청일</div><div class='info-value'>"+(order.date||"-")+"</div></div>"+(order.reason?"<div class='info-item'><div class='info-label'>요청 사유</div><div class='info-value' style='font-size:12px;font-weight:600'>"+order.reason+"</div></div>":"")+"</div>");
+  win.document.write("<table><thead><tr><th style='width:15%'>컬렉션</th><th style='width:22%'>재고명</th><th style='width:13%'>옵션</th><th style='width:20%'>사이즈</th><th style='width:15%'>소재</th><th style='width:9%;text-align:center'>수량</th></tr></thead><tbody>");
+  rows.forEach(r=>{
+    win.document.write("<tr><td>"+r.collection+"</td><td style='font-weight:600'>"+r.name+"</td><td style='color:#555'>"+(r.opt==="-"||r.opt==="null"?"-":r.opt)+"</td><td style='font-size:11px;color:#555'>"+r.size+"</td><td style='font-size:11px;color:#555'>"+r.material+"</td><td style='text-align:center;font-weight:800;font-size:13px'>"+r.qty+r.unit+"</td></tr>");
+  });
+  win.document.write("</tbody></table><div class='sign-area'><div class='sign-box'>담당자 확인</div><div class='sign-box'>출고 담당</div><div class='sign-box'>수령 확인</div></div><div class='footer'><span>EIDOS STUDIO</span><span>본 문서는 출고 지시 목적으로만 사용됩니다</span></div><div style='text-align:center;margin-top:20px'><button onclick='window.print()' style='padding:10px 30px;background:#111;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer'>🖨️ 인쇄하기</button></div></body></html>");
+  win.document.close();
+  setTimeout(()=>win.print(),400);
+};
+
+window.toggleStatusDropdown=(orderId)=>{
+  const dd=document.getElementById("dd-"+orderId);
+  if(!dd)return;
+  const isOpen=dd.style.display==="block";
+  document.querySelectorAll(".status-dropdown").forEach(el=>el.style.display="none");
+  if(!isOpen) dd.style.display="block";
+};
+
 // 상태별 스타일
 const STATUS_STYLE = {
   "검토중":  {bg:"rgba(139,92,246,0.15)", color:"#a78bfa", border:"rgba(139,92,246,0.3)", icon:"🔍"},
@@ -1126,13 +1161,16 @@ function renderOrderCard(order){
   let html="<div class=\"order-row\">";
   // 헤더 행
   html+="<div style=\"display:flex;align-items:center;gap:6px;margin-bottom:8px\">";
-  html+="<div style=\"font-weight:700;font-size:14px;flex:1\">"+escH(order.storeName)+"</div>";
+  // 매장명 + 연필 + 프린터 묶음
+  html+="<div style=\"display:flex;align-items:center;gap:4px;flex:1;min-width:0\">";
+  html+="<div style=\"font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">"+escH(order.storeName)+"</div>";
   if(!isCanceled){
-    html+="<button class=\"store-edit-btn\" data-oid=\""+order.id+"\" data-sn=\""+escAttr(order.storeName)+"\" title=\"매장명 수정\" style=\"padding:3px 7px;border-radius:6px;font-size:11px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0\">✏️</button>";
+    html+="<button class=\"store-edit-btn\" data-oid=\""+order.id+"\" data-sn=\""+escAttr(order.storeName)+"\" title=\"매장명 수정\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0\">✏️</button>";
   }
   if(canPrint){
-    html+="<button class=\"print-order-btn\" data-oid=\""+order.id+"\" title=\"출고 지시서 출력\" style=\"padding:3px 7px;border-radius:6px;font-size:11px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);color:#94a3b8;cursor:pointer;flex-shrink:0\">🖨️</button>";
+    html+="<button class=\"print-order-btn\" data-oid=\""+order.id+"\" title=\"출고 지시서 출력\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);color:#94a3b8;cursor:pointer;flex-shrink:0\">🖨️</button>";
   }
+  html+="</div>";
   // 상태 드롭다운
   html+="<div style=\"position:relative;display:inline-block;flex-shrink:0\">";
   html+="<button id=\"status-btn-"+order.id+"\" class=\"status-toggle-btn\" data-oid=\""+order.id+"\" style=\"display:flex;align-items:center;gap:5px;padding:5px 10px 5px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:"+(isCanceled?"default":"pointer")+";border:1px solid "+st.border+";background:"+st.bg+";color:"+st.color+";white-space:nowrap\"  "+(isCanceled?"disabled":"")+">"+st.icon+" "+s+((!isCanceled&&steps.length)?"<span style=\"font-size:9px;opacity:.7;margin-left:2px\">▼</span>":"")+"</button>";
@@ -1172,13 +1210,16 @@ function renderOrderCard(order){
   if(s==="반려"&&order.rejectReason) html+="<div style=\"font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px\">❌ 반려 사유: "+escH(order.rejectReason)+"</div>";
   // 재고 품목
   const chips=order.items.map(it=>"<div class=\"item-chip\"><span style=\"font-size:9px;color:#6366f1;font-weight:600;margin-right:2px\">"+escH(it.collection)+"</span>"+escH(it.itemName)+(it.optName?" ["+escH(it.optName)+"]":"")+"<strong style=\"color:"+(isDark?"#e2e8f0":"#111827")+";margin-left:3px\">"+it.qty+escH(it.unit)+"</strong></div>");
-  if(chips.length<=1){
+  // 3개까지 보이고 나머지 숨기기
+  const SHOW_COUNT = 3;
+  if(chips.length<=SHOW_COUNT){
     html+="<div style=\"display:flex;flex-wrap:wrap;gap:4px\">"+chips.join("")+"</div>";
   } else {
     const moreId="items-more-"+order.id;
-    html+="<div><div style=\"display:flex;flex-wrap:wrap;gap:4px\">"+chips[0]+"</div>";
-    html+="<div id=\""+moreId+"\" style=\"display:none;flex-wrap:wrap;gap:4px;margin-top:4px\">"+chips.slice(1).join("")+"</div>";
-    html+="<button class=\"items-toggle-btn\" data-mid=\""+moreId+"\" data-cnt=\""+(chips.length-1)+"\" style=\"margin-top:4px;padding:2px 8px;border-radius:5px;font-size:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#475569;cursor:pointer\">▼ "+(chips.length-1)+"개 더보기</button></div>";
+    const hiddenCnt=chips.length-SHOW_COUNT;
+    html+="<div><div style=\"display:flex;flex-wrap:wrap;gap:4px\">"+chips.slice(0,SHOW_COUNT).join("")+"</div>";
+    html+="<div id=\""+moreId+"\" style=\"display:none;flex-wrap:wrap;gap:4px;margin-top:4px\">"+chips.slice(SHOW_COUNT).join("")+"</div>";
+    html+="<button class=\"items-toggle-btn\" data-mid=\""+moreId+"\" data-cnt=\""+hiddenCnt+"\" style=\"margin-top:4px;padding:2px 8px;border-radius:5px;font-size:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#475569;cursor:pointer\">▼ "+hiddenCnt+"개 더보기</button></div>";
   }
   html+="</div>"; // order-row 닫기
   return html;
