@@ -987,6 +987,17 @@ window.openPhoto=(id)=>{photoTargetId=id;photoInput.click();};
 
 
 // ── 렌더 출고요청 ──
+// 상태별 스타일
+const STATUS_STYLE = {
+  "검토중":  {bg:"rgba(139,92,246,0.15)", color:"#a78bfa", border:"rgba(139,92,246,0.3)", icon:"🔍"},
+  "승인":    {bg:"rgba(59,130,246,0.15)",  color:"#60a5fa", border:"rgba(59,130,246,0.3)",  icon:"✅"},
+  "준비중":  {bg:"rgba(251,191,36,0.15)", color:"#fbbf24", border:"rgba(251,191,36,0.3)", icon:"🔄"},
+  "출고대기":{bg:"rgba(249,115,22,0.15)", color:"#fb923c", border:"rgba(249,115,22,0.3)", icon:"📦"},
+  "출고완료":{bg:"rgba(52,211,153,0.15)", color:"#34d399", border:"rgba(52,211,153,0.3)", icon:"✅"},
+  "반려":    {bg:"rgba(239,68,68,0.15)",  color:"#ef4444", border:"rgba(239,68,68,0.3)",  icon:"❌"},
+  "취소":    {bg:"rgba(100,116,139,0.15)",color:"#64748b", border:"rgba(100,116,139,0.3)",icon:"🚫"},
+};
+
 function renderOrders(){
   const currentWeek=getWeekLabel(new Date().toISOString());
   const now=new Date();
