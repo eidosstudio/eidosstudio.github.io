@@ -110,12 +110,12 @@ body.dark .cart-item{background:#0f1020;border:1px solid rgba(255,255,255,0.07)}
 body.light .cart-item{background:#fff;border:1px solid rgba(0,0,0,0.08)}
 .week-group{margin-bottom:20px}
 .week-header{display:flex;align-items:center;gap:8px;padding:10px 14px;font-weight:700;font-size:12px}
-body.dark .week-header{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px 10px 0 0}
+body.dark .week-header{background:rgba(59,130,246,0.08);border:2px solid rgba(59,130,246,0.35);border-radius:10px 10px 0 0}
 body.light .week-header{background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:10px 10px 0 0}
 .week-cycle{display:flex;gap:8px;flex-wrap:wrap;padding:7px 14px}
 body.dark .week-cycle{background:rgba(255,255,255,0.02);border-left:1px solid rgba(59,130,246,0.2);border-right:1px solid rgba(59,130,246,0.2)}
 body.light .week-cycle{background:rgba(0,0,0,0.02);border-left:1px solid rgba(59,130,246,0.2);border-right:1px solid rgba(59,130,246,0.2)}
-.order-list{overflow:hidden;border-radius:0 0 10px 10px;border:1px solid rgba(59,130,246,0.2);border-top:none}
+.order-list{overflow:hidden;border-radius:0 0 10px 10px;border:2px solid rgba(59,130,246,0.35);border-top:none}
 .order-row{padding:12px 14px}
 .order-row+.order-row{border-top:1px solid rgba(128,128,128,0.08)}
 body.dark .order-row:nth-child(even){background:rgba(255,255,255,0.02)}
@@ -1156,24 +1156,10 @@ function renderOrderCard(order){
   const steps=nextSteps[s]||[];
   const canPrint=["승인","준비중","출고대기","출고완료"].includes(s);
 
-  let html="<div class=\"order-row\">";
-  // 헤더 행
-  html+="<div style=\"display:flex;align-items:center;gap:6px;margin-bottom:8px\">";
-  // 매장명 + 연필 + 프린터 묶음
-  html+="<div style=\"display:flex;align-items:center;gap:4px;flex:1;min-width:0\">";
-  html+="<div style=\"font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">"+escH(order.storeName)+"</div>";
-  if(!isCanceled){
-    html+="<button class=\"store-edit-btn\" data-oid=\""+order.id+"\" data-sn=\""+escAttr(order.storeName)+"\" title=\"매장명 수정\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0\">✏️</button>";
-  }
-  if(canPrint){
-    html+="<button class=\"print-order-btn\" data-oid=\""+order.id+"\" title=\"출고 지시서 출력\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);color:#94a3b8;cursor:pointer;flex-shrink:0\">🖨️</button>";
-  }
-  html+="</div>";
-  // 상태 드롭다운
-  html+="<div style=\"position:relative;display:inline-block;flex-shrink:0\">";
-  html+="<button id=\"status-btn-"+order.id+"\" class=\"status-toggle-btn\" data-oid=\""+order.id+"\" style=\"display:flex;align-items:center;gap:5px;padding:5px 10px 5px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:"+(isCanceled?"default":"pointer")+";border:1px solid "+st.border+";background:"+st.bg+";color:"+st.color+";white-space:nowrap\"  "+(isCanceled?"disabled":"")+">"+st.icon+" "+s+((!isCanceled&&steps.length)?"<span style=\"font-size:9px;opacity:.7;margin-left:2px\">▼</span>":"")+"</button>";
+  // 상태 드롭다운 HTML
+  let ddHtml="";
   if(!isCanceled&&steps.length){
-    html+="<div id=\"dd-"+order.id+"\" class=\"status-dropdown\" style=\"display:none;position:absolute;right:0;top:calc(100% + 4px);background:#1e2235;border:1px solid rgba(255,255,255,0.12);border-radius:10px;z-index:999;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden\">";
+    let items="";
     steps.forEach(step=>{
       const sst=STATUS_STYLE[step]||{};
       let action="";
@@ -1181,44 +1167,67 @@ function renderOrderCard(order){
       else if(step==="반려") action="window.openRejectModal('"+order.id+"')";
       else if(step==="취소") action="window.openCancelModal('"+order.id+"')";
       else action="window.setStatus('"+order.id+"','"+step+"')";
-      html+="<div class=\"dd-item\" data-action=\""+escAttr(action)+"\" style=\"display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:"+(sst.color||"#e2e8f0")+";border-bottom:1px solid rgba(255,255,255,0.05)\">"+(sst.icon||"")+" "+step+"으로 변경</div>";
+      items+="<div class=\"dd-item\" data-action=\""+escAttr(action)+"\" style=\"display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:"+(sst.color||"#e2e8f0")+";border-bottom:1px solid rgba(255,255,255,0.05)\">"+(sst.icon||"")+" "+step+"으로 변경</div>";
     });
-    html+="<div class=\"dd-item\" data-action=\"window.deleteOrder('"+order.id+"')\" style=\"display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:#f87171\">🗑️ 삭제</div>";
-    html+="</div>";
+    items+="<div class=\"dd-item\" data-action=\"window.deleteOrder('"+order.id+"')\" style=\"display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:#f87171\">🗑️ 삭제</div>";
+    ddHtml="<div id=\"dd-"+order.id+"\" class=\"status-dropdown\" style=\"display:none;position:absolute;right:0;top:calc(100% + 4px);background:#1e2235;border:1px solid rgba(255,255,255,0.12);border-radius:10px;z-index:999;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden\">"+items+"</div>";
   }
-  if(isCanceled){
-    html+="<button class=\"delete-order-btn\" data-oid=\""+order.id+"\" style=\"margin-left:4px;padding:4px 8px;border-radius:6px;font-size:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;cursor:pointer\">🗑️</button>";
-  }
-  html+="</div>";
-  html+="<div style=\"font-size:10px;color:"+(isDark?"#475569":"#9ca3af")+";text-align:right;flex-shrink:0\">"+escH(order.date||"")+(order.handler?"<div style=\"font-weight:600;color:#6366f1;margin-top:1px\">"+escH(order.handler)+"</div>":"")+"</div>";
-  html+="</div></div>"; // 헤더 행 닫기
+
+  const statusBtn="<div style=\"position:relative;display:inline-block;flex-shrink:0\">"
+    +"<button id=\"status-btn-"+order.id+"\" class=\"status-toggle-btn\" data-oid=\""+order.id+"\" style=\"display:flex;align-items:center;gap:5px;padding:5px 10px 5px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:"+(isCanceled?"default":"pointer")+";border:1px solid "+st.border+";background:"+st.bg+";color:"+st.color+";white-space:nowrap\" "+(isCanceled?"disabled":"")+">"+st.icon+" "+s+((!isCanceled&&steps.length)?"<span style=\"font-size:9px;opacity:.7;margin-left:2px\">▼</span>":"")+"</button>"
+    +ddHtml
+    +(isCanceled?"<button class=\"delete-order-btn\" data-oid=\""+order.id+"\" style=\"margin-left:4px;padding:4px 8px;border-radius:6px;font-size:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;cursor:pointer\">🗑️</button>":"")
+    +"</div>";
+
+  const dateMeta="<div style=\"font-size:10px;color:"+(isDark?"#475569":"#9ca3af")+";text-align:right;flex-shrink:0\">"
+    +escH(order.date||"")
+    +(order.handler?"<div style=\"font-weight:600;color:#6366f1;margin-top:1px\">"+escH(order.handler)+"</div>":"")
+    +"</div>";
+
+  // 매장명 + 연필 + 프린터
+  const storeRow="<div style=\"display:flex;align-items:center;gap:4px;flex:1;min-width:0\">"
+    +"<div style=\"font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">"+escH(order.storeName)+"</div>"
+    +(!isCanceled?"<button class=\"store-edit-btn\" data-oid=\""+order.id+"\" data-sn=\""+escAttr(order.storeName)+"\" title=\"매장명 수정\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0\">✏️</button>":"")
+    +(canPrint?"<button class=\"print-order-btn\" data-oid=\""+order.id+"\" title=\"출고 지시서 출력\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);color:#94a3b8;cursor:pointer;flex-shrink:0\">🖨️</button>":"")
+    +"</div>";
+
+  // 헤더 행 (1 depth)
+  let html="<div class=\"order-row\">"
+    +"<div style=\"display:flex;align-items:center;gap:6px;margin-bottom:8px\">"
+      +storeRow
+      +statusBtn
+      +dateMeta
+    +"</div>";
 
   // 사유
   if(order.reason) html+="<div style=\"font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);color:#a5b4fc;margin-bottom:6px\">📝 "+escH(order.reason)+"</div>";
+
   // 사진
   if(order.photos&&order.photos.length){
-    html+="<div style=\"margin-bottom:6px\"><button class=\"photo-toggle-btn\" data-cnt=\""+order.photos.length+"\" style=\"padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;margin-bottom:6px\">📷 사진 보기 ("+order.photos.length+"장)</button><div style=\"display:none;gap:6px;flex-wrap:wrap\">";
-    order.photos.forEach(p=>{
-      html+="<img src=\""+escAttr(p)+"\" style=\"width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.12);cursor:zoom-in\" class=\"view-photo-btn\" data-src=\""+escAttr(p)+"\">";
-    });
-    html+="</div></div>";
+    let photoImgs="";
+    order.photos.forEach(p=>{ photoImgs+="<img src=\""+escAttr(p)+"\" style=\"width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.12);cursor:zoom-in\" class=\"view-photo-btn\" data-src=\""+escAttr(p)+"\">"; });
+    html+="<div style=\"margin-bottom:6px\"><button class=\"photo-toggle-btn\" data-cnt=\""+order.photos.length+"\" style=\"padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;margin-bottom:6px\">📷 사진 보기 ("+order.photos.length+"장)</button><div style=\"display:none;gap:6px;flex-wrap:wrap\">"+photoImgs+"</div></div>";
   }
+
   // 취소/반려 사유
   if(s==="취소"&&order.cancelReason) html+="<div style=\"font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px\">🚫 취소 사유: "+escH(order.cancelReason)+"</div>";
   if(s==="반려"&&order.rejectReason) html+="<div style=\"font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px\">❌ 반려 사유: "+escH(order.rejectReason)+"</div>";
+
   // 재고 품목
   const chips=order.items.map(it=>"<div class=\"item-chip\"><span style=\"font-size:9px;color:#6366f1;font-weight:600;margin-right:2px\">"+escH(it.collection)+"</span>"+escH(it.itemName)+(it.optName?" ["+escH(it.optName)+"]":"")+"<strong style=\"color:"+(isDark?"#e2e8f0":"#111827")+";margin-left:3px\">"+it.qty+escH(it.unit)+"</strong></div>");
-  // 3개까지 보이고 나머지 숨기기
-  const SHOW_COUNT = 3;
-  if(chips.length<=SHOW_COUNT){
+  const SHOW=3;
+  if(chips.length<=SHOW){
     html+="<div style=\"display:flex;flex-wrap:wrap;gap:4px\">"+chips.join("")+"</div>";
   } else {
     const moreId="items-more-"+order.id;
-    const hiddenCnt=chips.length-SHOW_COUNT;
-    html+="<div><div style=\"display:flex;flex-wrap:wrap;gap:4px\">"+chips.slice(0,SHOW_COUNT).join("")+"</div>";
-    html+="<div id=\""+moreId+"\" style=\"display:none;flex-wrap:wrap;gap:4px;margin-top:4px\">"+chips.slice(SHOW_COUNT).join("")+"</div>";
-    html+="<button class=\"items-toggle-btn\" data-mid=\""+moreId+"\" data-cnt=\""+hiddenCnt+"\" style=\"margin-top:6px;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;cursor:pointer\">▼ "+hiddenCnt+"개 더보기</button></div>";
+    const hiddenCnt=chips.length-SHOW;
+    html+="<div>"
+      +"<div style=\"display:flex;flex-wrap:wrap;gap:4px\">"+chips.slice(0,SHOW).join("")+"</div>"
+      +"<div id=\""+moreId+"\" style=\"display:none;flex-wrap:wrap;gap:4px;margin-top:4px\">"+chips.slice(SHOW).join("")+"</div>"
+      +"<button class=\"items-toggle-btn\" data-mid=\""+moreId+"\" data-cnt=\""+hiddenCnt+"\" style=\"margin-top:6px;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;cursor:pointer\">▼ "+hiddenCnt+"개 더보기</button>"
+      +"</div>";
   }
+
   html+="</div>"; // order-row 닫기
   return html;
 }
