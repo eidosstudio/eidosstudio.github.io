@@ -1076,76 +1076,88 @@ function renderOrders(){
       </div>
       <div class="order-list">
         ${wOrders.map(order=>`
-        <div class="order-row">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-            <div style="font-weight:700;font-size:14px;flex:1;display:flex;align-items:center;gap:6px">
-              ${order.storeName}
-              ${order.status!=="취소"?`<button onclick="window.openStoreNameEditModal('${order.id}','${order.storeName.replace(/'/g,"\'")}')" style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️</button>`:""}
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              ${(()=>{
-                const s=order.status||"검토중";
-                const st=STATUS_STYLE[s]||STATUS_STYLE["검토중"];
-                const isCanceled=s==="취소";
-                // 다음 단계 옵션 정의
-                const nextSteps={
-                  "검토중":  ["승인","반려","취소"],
-                  "승인":    ["준비중","출고대기","출고완료","취소"],
-                  "준비중":  ["출고대기","출고완료","취소"],
-                  "출고대기":["출고완료","취소"],
-                  "출고완료":["출고대기","준비중","승인"],
-                  "반려":    ["승인","취소"],
-                  "취소":    [],
-                };
-                const steps=nextSteps[s]||[];
-                return `<div style="position:relative;display:inline-block">
-                  <button id="status-btn-${order.id}" onclick="window.toggleStatusDropdown('${order.id}')"
-                    style="display:flex;align-items:center;gap:5px;padding:5px 10px 5px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:${isCanceled?"default":"pointer"};border:1px solid ${st.border};background:${st.bg};color:${st.color};white-space:nowrap"
-                    ${isCanceled?"disabled":""}>
-                    ${st.icon} ${s}
-                    ${!isCanceled&&steps.length?`<span style="font-size:9px;opacity:.7;margin-left:2px">▼</span>`:""}
-                  </button>
-                  ${!isCanceled&&steps.length?`
-                  <div id="dd-${order.id}" class="status-dropdown"
-                    style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#1e2235;border:1px solid rgba(255,255,255,0.12);border-radius:10px;z-index:999;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden">
-                    ${steps.map(step=>{
-                      const sst=STATUS_STYLE[step]||{};
-                      return `<div onclick="window.toggleStatusDropdown('${order.id}');${
-                        step==='승인'?`window.openApproveModal('${order.id}')`:
-                        step==='반려'?`window.openRejectModal('${order.id}')`:
-                        step==='취소'?`window.openCancelModal('${order.id}')`:
-                        `window.setStatus('${order.id}','${step}')`
-                      }"
-                        style="display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:${sst.color||"#e2e8f0"};border-bottom:1px solid rgba(255,255,255,0.05)"
-                        onmouseover="this.style.background='rgba(255,255,255,0.06)'"
-                        onmouseout="this.style.background=''">
-                        ${sst.icon||""} ${step}으로 변경
-                      </div>`;
-                    }).join("")}
-                    <div onclick="window.toggleStatusDropdown('${order.id}');window.deleteOrder('${order.id}')"
-                      style="display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:#f87171"
-                      onmouseover="this.style.background='rgba(239,68,68,0.08)'"
+         <div class="order-row">
+          <!-- 헤더: 매장명 / ✏️ / 🖨️ / 상태 -->
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <div style="font-weight:700;font-size:14px;flex:1">${order.storeName}</div>
+            ${order.status!=="취소"?`<button onclick="window.openStoreNameEditModal('${order.id}','${order.storeName.replace(/'/g,"\'")}') "
+              title="매장명 수정"
+              style="padding:3px 7px;border-radius:6px;font-size:11px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️</button>`:""}
+            ${["승인","준비중","출고대기","출고완료"].includes(order.status)?`<button onclick="window.printOrder('${order.id}')"
+              title="출고 지시서 출력"
+              style="padding:3px 7px;border-radius:6px;font-size:11px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);color:#94a3b8;cursor:pointer;flex-shrink:0">🖨️</button>`:""}
+            <!-- 상태 드롭다운 -->
+            ${(()=>{
+              const s=order.status||"검토중";
+              const st=STATUS_STYLE[s]||STATUS_STYLE["검토중"];
+              const isCanceled=s==="취소";
+              const nextSteps={
+                "검토중":  ["승인","반려","취소"],
+                "승인":    ["준비중","출고대기","출고완료","취소"],
+                "준비중":  ["출고대기","출고완료","취소"],
+                "출고대기":["출고완료","취소"],
+                "출고완료":["출고대기","준비중","승인"],
+                "반려":    ["승인","취소"],
+                "취소":    [],
+              };
+              const steps=nextSteps[s]||[];
+              return `<div style="position:relative;display:inline-block;flex-shrink:0">
+                <button id="status-btn-${order.id}" onclick="window.toggleStatusDropdown('${order.id}')"
+                  style="display:flex;align-items:center;gap:5px;padding:5px 10px 5px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:${isCanceled?"default":"pointer"};border:1px solid ${st.border};background:${st.bg};color:${st.color};white-space:nowrap"
+                  ${isCanceled?"disabled":""}>
+                  ${st.icon} ${s}
+                  ${!isCanceled&&steps.length?`<span style="font-size:9px;opacity:.7;margin-left:2px">▼</span>`:""}
+                </button>
+                ${!isCanceled&&steps.length?`
+                <div id="dd-${order.id}" class="status-dropdown"
+                  style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#1e2235;border:1px solid rgba(255,255,255,0.12);border-radius:10px;z-index:999;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden">
+                  ${steps.map(step=>{
+                    const sst=STATUS_STYLE[step]||{};
+                    return `<div onclick="window.toggleStatusDropdown('${order.id}');${
+                      step==='승인'?`window.openApproveModal('${order.id}')`:
+                      step==='반려'?`window.openRejectModal('${order.id}')`:
+                      step==='취소'?`window.openCancelModal('${order.id}')`:
+                      `window.setStatus('${order.id}','${step}')`
+                    }"
+                      style="display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:${sst.color||"#e2e8f0"};border-bottom:1px solid rgba(255,255,255,0.05)"
+                      onmouseover="this.style.background='rgba(255,255,255,0.06)'"
                       onmouseout="this.style.background=''">
-                      🗑️ 삭제
-                    </div>
-                  </div>`:""}
-                  ${isCanceled?`<button onclick="window.deleteOrder('${order.id}')" style="margin-left:4px;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;cursor:pointer">🗑️</button>`:""}
-                </div>
-                ${["승인","준비중","출고대기","출고완료"].includes(order.status)?`
-                <button onclick="window.printOrder('${order.id}')"
-                  style="margin-top:6px;width:100%;padding:6px;border-radius:8px;font-size:11px;font-weight:700;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer">
-                  🖨️ 출고 지시서 출력
-                </button>`:""}`;
-              })()}
-
+                      ${sst.icon||""} ${step}으로 변경
+                    </div>`;
+                  }).join("")}
+                  <div onclick="window.toggleStatusDropdown('${order.id}');window.deleteOrder('${order.id}')"
+                    style="display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:#f87171"
+                    onmouseover="this.style.background='rgba(239,68,68,0.08)'"
+                    onmouseout="this.style.background=''">
+                    🗑️ 삭제
+                  </div>
+                </div>`:""}
+                ${isCanceled?`<button onclick="window.deleteOrder('${order.id}')" style="margin-left:4px;padding:4px 8px;border-radius:6px;font-size:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;cursor:pointer">🗑️</button>`:""}
+              </div>`;
+            })()}
+            <div style="font-size:10px;color:${isDark?"#475569":"#9ca3af"};text-align:right;flex-shrink:0">
+              ${order.date||""}
+              ${order.handler?`<div style="font-weight:600;color:#6366f1;margin-top:1px">${order.handler}</div>`:""}
+            </div>
           </div>
-          ${order.reason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);color:#a5b4fc;margin-bottom:6px">📝 요청 사유: ${order.reason}</div>`:""}
+          <!-- 사유/사진/취소반려 -->
+          ${order.reason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);color:#a5b4fc;margin-bottom:6px">📝 ${order.reason}</div>`:""}
           ${order.photos?.length?`<div style="margin-bottom:6px"><button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'flex':'none';this.textContent=this.textContent.includes('보기')?'📷 사진 접기':'📷 사진 보기 ('+order.photos.length+'장)'" style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;margin-bottom:6px">📷 사진 보기 (${order.photos.length}장)</button><div style="display:none;gap:6px;flex-wrap:wrap">${order.photos.map(p=>`<img src="${p}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.12);cursor:zoom-in" onclick="window.viewPhoto('${p}')">`).join("")}</div></div>`:""}
-          ${order.status==="취소"&&order.cancelReason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px">취소 사유: ${order.cancelReason}</div>`:""}
-          ${order.status==="반려"&&order.rejectReason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px">반려 사유: ${order.rejectReason}</div>`:""}
-          <div style="display:flex;flex-wrap:wrap;gap:4px">
-            ${order.items.map(it=>`<div class="item-chip"><span style="font-size:9px;color:#6366f1;font-weight:600;margin-right:2px">${it.collection}</span>${it.itemName}${it.optName?` [${it.optName}]`:""}<strong style="color:${isDark?"#e2e8f0":"#111827"};margin-left:3px">${it.qty}${it.unit}</strong></div>`).join("")}
-          </div>
+          ${order.status==="취소"&&order.cancelReason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px">🚫 취소 사유: ${order.cancelReason}</div>`:""}
+          ${order.status==="반려"&&order.rejectReason?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:6px">❌ 반려 사유: ${order.rejectReason}</div>`:""}
+          <!-- 재고 품목 (2개 이상 숨김/보기) -->
+          ${(()=>{
+            const chips=order.items.map(it=>`<div class="item-chip"><span style="font-size:9px;color:#6366f1;font-weight:600;margin-right:2px">${it.collection}</span>${it.itemName}${it.optName?` [${it.optName}]`:""}<strong style="color:${isDark?"#e2e8f0":"#111827"};margin-left:3px">${it.qty}${it.unit}</strong></div>`);
+            if(chips.length<=1) return `<div style="display:flex;flex-wrap:wrap;gap:4px">${chips.join("")}</div>`;
+            return `<div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px">${chips[0]}</div>
+              <div id="items-more-${order.id}" style="display:none;flex-wrap:wrap;gap:4px;margin-top:4px">${chips.slice(1).join("")}</div>
+              <button onclick="const el=document.getElementById('items-more-${order.id}');el.style.display=el.style.display==='none'?'flex':'none';this.textContent=this.textContent.includes('더보기')?'▲ 접기':'▼ '+${chips.length-1}+'개 더보기'"
+                style="margin-top:4px;padding:2px 8px;border-radius:5px;font-size:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#475569;cursor:pointer">▼ ${chips.length-1}개 더보기</button>
+            </div>`;
+          })()}
+        </div>`).join("")}
+
         </div>`).join("")}
       </div>`)}
     </div>`).join("")}
