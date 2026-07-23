@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="GM 재고">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -291,11 +294,10 @@ function isLow(i){return totalQty(i)<10;}
 function getWeekLabel(dateStr){
   const d=new Date(dateStr);
   const day=d.getDay(); // 0=일,1=월,...,6=토
-  // 토(6),일(0)은 다음 주 월요일로 집계
   const mon=new Date(d);
-  if(day===0) mon.setDate(d.getDate()+1);       // 일→다음월
-  else if(day===6) mon.setDate(d.getDate()+2);  // 토→다음월
-  else mon.setDate(d.getDate()-(day-1));         // 월~금→이번주월
+  if(day===0) mon.setDate(d.getDate()+1);      // 일→다음주 월
+  else if(day===6) mon.setDate(d.getDate()+2); // 토→다음주 월
+  else mon.setDate(d.getDate()-(day-1));        // 월(1)~금(5)→이번주 월
   const fri=new Date(mon);fri.setDate(mon.getDate()+4);
   const fmt=dt=>`${dt.getMonth()+1}/${dt.getDate()}`;
   const days=["일","월","화","수","목","금","토"];
@@ -1026,6 +1028,23 @@ window.confirmStoreNameEdit=async()=>{
     showToast("매장명이 수정됐어요 ✅");
   }catch(e){showToast("저장 오류: "+e.message,"#f87171");}
 };
+</script>
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').then(reg=>{
+    // 새 버전 감지 시 즉시 업데이트
+    reg.addEventListener('updatefound',()=>{
+      const newSW=reg.installing;
+      newSW.addEventListener('statechange',()=>{
+        if(newSW.state==='installed'&&navigator.serviceWorker.controller){
+          // 새 버전 발견 시 자동 새로고침
+          navigator.serviceWorker.addEventListener('controllerchange',()=>window.location.reload());
+          newSW.postMessage({type:'SKIP_WAITING'});
+        }
+      });
+    });
+  });
+}
 </script>
 </body>
 </html>
