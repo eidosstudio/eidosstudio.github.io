@@ -1149,11 +1149,13 @@ function renderOrders(){
           ${(()=>{
             const chips=order.items.map(it=>`<div class="item-chip"><span style="font-size:9px;color:#6366f1;font-weight:600;margin-right:2px">${it.collection}</span>${it.itemName}${it.optName?` [${it.optName}]`:""}<strong style="color:${isDark?"#e2e8f0":"#111827"};margin-left:3px">${it.qty}${it.unit}</strong></div>`);
             if(chips.length<=1) return `<div style="display:flex;flex-wrap:wrap;gap:4px">${chips.join("")}</div>`;
+            const moreId="items-more-"+order.id;
+            const moreCnt=chips.length-1;
             return `<div>
               <div style="display:flex;flex-wrap:wrap;gap:4px">${chips[0]}</div>
-              <div id="items-more-${order.id}" style="display:none;flex-wrap:wrap;gap:4px;margin-top:4px">${chips.slice(1).join("")}</div>
-              <button onclick="const el=document.getElementById('items-more-${order.id}');el.style.display=el.style.display==='none'?'flex':'none';this.textContent=this.textContent.includes('더보기')?'▲ 접기':'▼ '+${chips.length-1}+'개 더보기'"
-                style="margin-top:4px;padding:2px 8px;border-radius:5px;font-size:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#475569;cursor:pointer">▼ ${chips.length-1}개 더보기</button>
+              <div id="${moreId}" style="display:none;flex-wrap:wrap;gap:4px;margin-top:4px">${chips.slice(1).join("")}</div>
+              <button onclick="(function(b){var el=document.getElementById('${moreId}');var show=el.style.display==='none';el.style.display=show?'flex':'none';b.textContent=(show?'▲ 접기':'▼ ${moreCnt}개 더보기')})(this)"
+                style="margin-top:4px;padding:2px 8px;border-radius:5px;font-size:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#475569;cursor:pointer">▼ ${moreCnt}개 더보기</button>
             </div>`;
           })()}
         </div>`).join("")}
