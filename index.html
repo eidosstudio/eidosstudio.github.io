@@ -1080,9 +1080,7 @@ function renderOrders(){
           <!-- 헤더: 매장명 / ✏️ / 🖨️ / 상태 -->
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
             <div style="font-weight:700;font-size:14px;flex:1">${order.storeName}</div>
-            ${order.status!=="취소"?`<button onclick="window.openStoreNameEditModal('${order.id}','${order.storeName.replace(/'/g,"\'")}') "
-              title="매장명 수정"
-              style="padding:3px 7px;border-radius:6px;font-size:11px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️</button>`:""}
+            ${order.status!=="취소"?`<button data-oid="${order.id}" data-sn="${order.storeName.replace(/"/g,'&quot;')}" onclick="(function(b){window.openStoreNameEditModal(b.dataset.oid,b.dataset.sn)})(this)" title="매장명 수정" style="padding:3px 7px;border-radius:6px;font-size:11px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️</button>`:""}
             ${["승인","준비중","출고대기","출고완료"].includes(order.status)?`<button onclick="window.printOrder('${order.id}')"
               title="출고 지시서 출력"
               style="padding:3px 7px;border-radius:6px;font-size:11px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);color:#94a3b8;cursor:pointer;flex-shrink:0">🖨️</button>`:""}
@@ -1297,16 +1295,14 @@ window.toggleWeek=wk=>{
 function getCurrentWeekLabel(){
   return getWeekLabel(new Date().toISOString());
 }
-</script>
-<script>
+
+// Service Worker 등록
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw.js').then(reg=>{
-    // 새 버전 감지 시 즉시 업데이트
     reg.addEventListener('updatefound',()=>{
       const newSW=reg.installing;
       newSW.addEventListener('statechange',()=>{
         if(newSW.state==='installed'&&navigator.serviceWorker.controller){
-          // 새 버전 발견 시 자동 새로고침
           navigator.serviceWorker.addEventListener('controllerchange',()=>window.location.reload());
           newSW.postMessage({type:'SKIP_WAITING'});
         }
