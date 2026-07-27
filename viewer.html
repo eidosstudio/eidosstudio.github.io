@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="GM 재고">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <title>재고관리</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet">
 <style>
@@ -199,12 +200,15 @@ body.light #loading{background:#f5f5f7}
     </div>
     <div class="field-wrap">
       <div class="field-label">요청 유형 *</div>
-      <div style="display:flex;gap:8px;margin-bottom:4px">
-        <label id="type-label-파손" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all .15s">
+      <div style="display:flex;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+        <label id="type-label-파손" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all .15s">
           <input type="radio" name="order-type" value="파손" style="accent-color:#ef4444" onchange="onOrderTypeChange()"> 🔴 파손
         </label>
-        <label id="type-label-부족" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all .15s">
+        <label id="type-label-부족" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all .15s">
           <input type="radio" name="order-type" value="부족" style="accent-color:#fbbf24" onchange="onOrderTypeChange()"> 🟡 부족
+        </label>
+        <label id="type-label-오픈" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all .15s">
+          <input type="radio" name="order-type" value="오픈" style="accent-color:#34d399" onchange="onOrderTypeChange()"> 🟢 오픈
         </label>
       </div>
       <div id="type-notice" style="font-size:11px;color:#475569;margin-top:4px"></div>
@@ -447,12 +451,239 @@ window.openCheckout=()=>{
   document.querySelectorAll('input[name="order-type"]').forEach(r=>r.checked=false);
   const notice=document.getElementById("type-notice");
   if(notice) notice.textContent="";
-  ["파손","부족"].forEach(t=>{
+  ["파손","부족","오픈"].forEach(t=>{
     const lbl=document.getElementById("type-label-"+t);
     if(lbl){lbl.style.borderColor="rgba(255,255,255,0.1)";lbl.style.background="rgba(255,255,255,0.04)";}
   });
   document.getElementById("checkout-modal").style.display="flex";
   setTimeout(()=>document.getElementById("store-name").focus(),100);
+};
+
+// ── 엑셀 오픈 발주 처리 ──
+window.handleOpenOrderExcel = async(input) => {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = "";
+
+  showToast("📂 엑셀 읽는 중...", "#60a5fa");
+
+  const reader = new FileReader();
+  reader.onload = async(e) => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:"array"});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+
+      // 헤더 찾기 (컬렉션, 상품명, 옵션, 수량 포함한 행)
+      let headerRow = -1;
+      for (let i = 0; i < Math.min(rows.length, 5); i++) {
+        const r = rows[i].map(c => String(c||"").trim());
+        if (r.some(c => c.includes("상품명") || c.includes("컬렉션"))) {
+          headerRow = i; break;
+        }
+      }
+      if (headerRow === -1) { showToast("엑셀 형식을 확인해주세요", "#f87171"); return; }
+
+      const headers = rows[headerRow].map(c => String(c||"").trim());
+      const collIdx = headers.findIndex(h => h.includes("컬렉션"));
+      const nameIdx = headers.findIndex(h => h.includes("상품명"));
+      const optIdx  = headers.findIndex(h => h.includes("옵션"));
+      const qtyIdx  = headers.findIndex(h => h.includes("수량"));
+
+      if (nameIdx === -1 || qtyIdx === -1) {
+        showToast("상품명/수량 열을 찾을 수 없어요", "#f87171"); return;
+      }
+
+      // 데이터 파싱
+      let curColl = "", curName = "";
+      const parsed = [];
+
+      for (let i = headerRow + 1; i < rows.length; i++) {
+        const row = rows[i];
+        const coll = String(collIdx >= 0 ? row[collIdx]||"" : "").trim();
+        const name = String(nameIdx >= 0 ? row[nameIdx]||"" : "").trim();
+        const opt  = String(optIdx  >= 0 ? row[optIdx] ||"" : "").trim();
+        const qty  = parseInt(row[qtyIdx]) || 0;
+
+        if (coll) curColl = coll;
+        if (name) curName = name;
+        if (!curName) continue;
+        if (qty <= 0) continue; // 수량 0이면 건너뜀
+
+        parsed.push({ collection: curColl, name: curName, opt, qty });
+      }
+
+      if (!parsed.length) {
+        showToast("수량이 입력된 품목이 없어요", "#f87171"); return;
+      }
+
+      // 재고 매칭 및 부족 검사
+      const matched = [], insufficient = [], notFound = [];
+
+      parsed.forEach(p => {
+        // 상품명으로 매칭
+        const item = items.find(i =>
+          i.name.toUpperCase() === p.name.toUpperCase() &&
+          (!p.collection || i.collection.toUpperCase() === p.collection.toUpperCase())
+        ) || items.find(i => i.name.toUpperCase() === p.name.toUpperCase());
+
+        if (!item) { notFound.push(p); return; }
+
+        // 재고 확인
+        let stock = 0;
+        if (p.opt && item.options) {
+          const o = item.options.find(o => o.name.includes(p.opt) || p.opt.includes(o.name));
+          stock = o ? (o.quantity || 0) : 0;
+        } else {
+          stock = item.options?.length ? Math.min(...item.options.map(o=>o.quantity||0)) : (item.quantity||0);
+        }
+
+        const optName = p.opt && item.options ?
+          (item.options.find(o => o.name.includes(p.opt) || p.opt.includes(o.name))?.name || p.opt) : null;
+
+        if (stock < p.qty) {
+          insufficient.push({...p, item, optName, stock, available: stock});
+        } else {
+          matched.push({...p, item, optName, stock});
+        }
+      });
+
+      // 결과 모달 표시
+      showOpenOrderReviewModal(matched, insufficient, notFound);
+
+    } catch(err) {
+      showToast("엑셀 읽기 오류: " + err.message, "#f87171");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+// 오픈 발주 검토 모달
+function showOpenOrderReviewModal(matched, insufficient, notFound) {
+  const modal = document.createElement("div");
+  modal.className = "modal-bg";
+  modal.id = "open-order-modal";
+
+  let insufHtml = "";
+  if (insufficient.length) {
+    insufHtml = `<div style="margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:6px">⚠️ 재고 부족 ${insufficient.length}건 — 제외 여부를 선택해주세요</div>
+      ${insufficient.map((p,i) => `
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);margin-bottom:4px">
+          <input type="checkbox" id="insuf-${i}" checked style="accent-color:#6366f1;width:16px;height:16px;flex-shrink:0">
+          <div style="flex:1;font-size:12px">
+            <span style="color:#6366f1;font-size:10px;font-weight:600">${p.collection}</span>
+            <span style="font-weight:700;margin-left:4px">${p.name}</span>
+            ${p.opt?`<span style="color:#94a3b8"> [${p.opt}]</span>`:""}
+          </div>
+          <div style="font-size:11px;text-align:right;flex-shrink:0">
+            <span style="color:#f87171">재고 ${p.stock}개</span>
+            <span style="color:#94a3b8"> / 요청 ${p.qty}개</span>
+          </div>
+        </div>`).join("")}
+      <div style="font-size:11px;color:#475569;margin-top:4px">✅ 체크된 항목은 재고 수량만큼 발주돼요</div>
+    </div>`;
+  }
+
+  let notFoundHtml = "";
+  if (notFound.length) {
+    notFoundHtml = `<div style="margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:#f87171;margin-bottom:6px">❌ 찾을 수 없는 품목 ${notFound.length}건 (자동 제외)</div>
+      ${notFound.map(p=>`<div style="font-size:11px;color:#f87171;padding:3px 0">${p.collection} - ${p.name}${p.opt?` [${p.opt}]`:""}</div>`).join("")}
+    </div>`;
+  }
+
+  modal.innerHTML = `<div class="modal-sheet" style="max-height:90dvh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📂 오픈 발주 검토</div>
+    <div style="font-size:12px;color:#34d399;margin-bottom:12px;padding:8px 10px;background:rgba(52,211,153,0.08);border-radius:8px;border:1px solid rgba(52,211,153,0.2)">
+      ✅ 발주 가능 ${matched.length}건
+    </div>
+    ${insufHtml}
+    ${notFoundHtml}
+    <div class="field-wrap">
+      <div class="field-label">매장명 *</div>
+      <input id="open-store-name" class="field-input" placeholder="예: SANDIEGO" autocomplete="off">
+    </div>
+    <div class="field-wrap">
+      <div class="field-label">국가 약자 *</div>
+      <input id="open-country-code" class="field-input" placeholder="예: USA, KR, JP" style="text-transform:uppercase">
+    </div>
+    <button class="btn-primary" onclick="window.confirmOpenOrder()">🚀 오픈 발주 요청</button>
+    <button class="btn-secondary-sm modal-close-btn">취소</button>
+  </div>`;
+
+  modal.addEventListener("click", e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+
+  // 매칭/부족 데이터 저장
+  modal._matched = matched;
+  modal._insufficient = insufficient;
+}
+
+window.confirmOpenOrder = async() => {
+  const modal = document.getElementById("open-order-modal");
+  const storeName = document.getElementById("open-store-name")?.value.trim();
+  const countryCode = document.getElementById("open-country-code")?.value.trim().toUpperCase();
+  if (!storeName) { showToast("매장명을 입력해주세요", "#f87171"); return; }
+  if (!countryCode) { showToast("국가 약자를 입력해주세요", "#f87171"); return; }
+
+  const fullStoreName = `${storeName} _ ${countryCode}`;
+  const matched = modal._matched || [];
+  const insufficient = modal._insufficient || [];
+
+  // 체크된 부족 품목 (재고 수량만큼)
+  const checkedInsuf = insufficient.filter((p,i) => {
+    const cb = document.getElementById("insuf-"+i);
+    return cb && cb.checked && p.stock > 0;
+  }).map(p => ({...p, qty: p.stock}));
+
+  const finalItems = [...matched, ...checkedInsuf];
+  if (!finalItems.length) { showToast("발주할 품목이 없어요", "#f87171"); return; }
+
+  // 발주 아이템 구성
+  const orderItems = finalItems.map(p => ({
+    itemId: p.item.id,
+    itemName: p.item.name,
+    optName: p.optName || null,
+    collection: p.item.collection,
+    qty: p.qty,
+    unit: p.item.unit || "개"
+  }));
+
+  // 재고 차감
+  for (const p of finalItems) {
+    const item = items.find(i => i.id === p.item.id);
+    if (!item) continue;
+    const clone = JSON.parse(JSON.stringify(item));
+    if (p.optName && clone.options) {
+      const o = clone.options.find(x => x.name === p.optName);
+      if (o) o.quantity = Math.max(0, (o.quantity||0) - p.qty);
+    } else {
+      clone.quantity = Math.max(0, (clone.quantity||0) - p.qty);
+    }
+    try { await setDoc(doc(collection(db,"items"), item.id), clone); } catch(e) {}
+  }
+
+  // 발주 저장
+  try {
+    await addDoc(collection(db,"orders"), {
+      storeName: fullStoreName,
+      status: "검토중",
+      orderType: "오픈",
+      reason: "[오픈] 신규 매장 오픈 발주",
+      photos: [],
+      weekLabel: getWeekLabel(new Date().toISOString()),
+      createdAt: serverTimestamp(),
+      date: todayDate(), time: nowTime(),
+      items: orderItems
+    });
+    modal.remove();
+    showToast(`🟢 오픈 발주 완료! ${fullStoreName} · ${orderItems.length}종`, "#34d399");
+    switchTab("orders");
+  } catch(err) {
+    showToast("저장 오류: " + err.message, "#f87171");
+  }
 };
 
 // 요청 유형 변경 핸들러
@@ -479,9 +710,15 @@ window.onOrderTypeChange=()=>{
   if(type==="파손"){
     if(notice) notice.innerHTML="<span style='color:#ef4444'>⚠️ 파손 사진 첨부 필수</span>";
     if(reqLabel) reqLabel.innerHTML="<span style='color:#ef4444'>* 필수</span>";
+    if(photoWrap) photoWrap.style.display="";
   } else if(type==="부족"){
     if(notice) notice.textContent="사진 첨부 없이 요청 가능해요";
     if(reqLabel) reqLabel.textContent="(선택)";
+    if(photoWrap) photoWrap.style.display="";
+  } else if(type==="오픈"){
+    if(notice) notice.textContent="신규 오픈 매장 발주예요. 사진 첨부 불필요해요.";
+    if(reqLabel) reqLabel.textContent="(불필요)";
+    if(photoWrap) photoWrap.style.display="none";
   } else {
     if(notice) notice.textContent="";
   }
@@ -597,6 +834,7 @@ window.confirmOrder=async(skipLateCheck=false)=>{
   if(!orderType){showToast("요청 유형을 선택해주세요 (파손/부족)","#f87171");return;}
   if(!reason){showToast("상세 사유를 입력해주세요","#f87171");return;}
   if(orderType==="파손"&&orderPhotosBase64.length===0){showToast("파손 사진을 첨부해주세요 📷","#f87171");return;}
+  if(orderType==="오픈"&&!reason){showToast("오픈 매장 정보를 입력해주세요","#f87171");return;}
 
   // 늦은 접수 경고 팝업
   if(!skipLateCheck && isLateOrder()){
@@ -731,6 +969,10 @@ function renderCart(){
       <button onclick="removeFromCart(${i})" style="padding:4px 10px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.25);color:#f87171;font-size:12px;font-weight:600;flex-shrink:0">제거</button>
     </div>`).join("")
     +`<button onclick="window.openCheckout()" class="btn-primary" style="margin-top:8px">🚀 발주하기 (${total}개)</button>
+    <label style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border-radius:12px;background:rgba(52,211,153,0.1);border:1.5px solid rgba(52,211,153,0.25);color:#34d399;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px">
+      📂 엑셀로 오픈 매장 발주하기
+      <input type="file" accept=".xlsx,.xls" style="display:none" onchange="window.handleOpenOrderExcel(this)">
+    </label>
     <button onclick="clearCart()" style="width:100%;padding:11px;border-radius:12px;background:rgba(255,255,255,0.06);color:#94a3b8;font-weight:600;font-size:14px;margin-top:8px;border:none;cursor:pointer">장바구니 비우기</button>
     <div style="height:80px"></div>`;
 }
