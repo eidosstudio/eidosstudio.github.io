@@ -954,6 +954,12 @@ function renderCart(){
       <div style="font-size:15px;font-weight:600;margin-bottom:6px">장바구니가 비어있어요</div>
       <div style="font-size:13px;color:#475569;margin-bottom:20px">재고 탭에서 담기 버튼을 눌러주세요</div>
       <button onclick="window.switchTab('stock')" class="btn-primary" style="width:auto;padding:10px 24px;border-radius:99px">재고 보러가기</button>
+      <div style="margin-top:14px">
+        <label style="display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:12px;background:rgba(52,211,153,0.1);border:1.5px solid rgba(52,211,153,0.25);color:#34d399;font-size:14px;font-weight:700;cursor:pointer">
+          📂 엑셀로 오픈 매장 발주하기
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="window.handleOpenOrderExcel(this)">
+        </label>
+      </div>
     </div>`;
     return;
   }
