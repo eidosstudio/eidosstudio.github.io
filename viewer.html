@@ -868,16 +868,15 @@ function renderStock(){
   const years=[...new Set(items.map(i=>String(i.year||"")).filter(Boolean))].sort().reverse();
   const byYear=filterYear==="전체"?items:items.filter(i=>String(i.year||"")==filterYear);
   // 컬렉션 순서: 신규 컬렉션이 왼쪽 (연도 내림차순 → 컬렉션별 커스텀 순서)
-  const COLL_ORDER=["PRADA","VEGGIE","BOUQUET","CIRCUIT X DISNEY","BOLD","MM","POCKET X BRATZ","FALL SEASON","JEWELRY"];
-  const rawColls=[...new Set(byYear.map(i=>i.collection).filter(Boolean))];
-  const colls=rawColls.sort((a,b)=>{
-    const ai=COLL_ORDER.indexOf(a);
-    const bi=COLL_ORDER.indexOf(b);
-    if(ai===-1&&bi===-1) return a.localeCompare(b);
-    if(ai===-1) return -1; // 목록에 없는 신규는 맨 앞
-    if(bi===-1) return 1;
-    return ai-bi;
+  // 컬렉션별 최소 _order 기준 정렬
+  const collMinOrder={};
+  byYear.forEach(i=>{
+    const c=i.collection; if(!c)return;
+    const o=i._order??9999;
+    if(collMinOrder[c]===undefined||o<collMinOrder[c]) collMinOrder[c]=o;
   });
+  const colls=[...new Set(byYear.map(i=>i.collection).filter(Boolean))]
+    .sort((a,b)=>(collMinOrder[a]??9999)-(collMinOrder[b]??9999));
   const ac=colls.includes(filterColl)?filterColl:"전체";
 
   document.getElementById("stock-stats").innerHTML=[
@@ -912,17 +911,12 @@ function renderStock(){
     document.getElementById("stock-groups").innerHTML=`<div style="text-align:center;padding:50px;font-size:14px;color:#475569">데이터를 불러오는 중...</div>`;return;
   }
 
-  // 컬렉션 순서 정렬 (신규 컬렉션 상단)
-  // grouped 키는 "2026 - VEGGIE" 형식이므로 컬렉션명만 추출해서 비교
-  const STOCK_ORDER=["PRADA","VEGGIE","BOUQUET","CIRCUIT X DISNEY","BOLD","MM","POCKET X BRATZ","FALL SEASON","JEWELRY"];
-  const getCollFromKey=k=>k.includes(" - ")?k.split(" - ").slice(1).join(" - "):k;
-  const sortedKeys=Object.keys(grouped).sort((a,b)=>{
-    const ac2=getCollFromKey(a), bc=getCollFromKey(b);
-    const ai=STOCK_ORDER.indexOf(ac2), bi=STOCK_ORDER.indexOf(bc);
-    if(ai===-1&&bi===-1) return a.localeCompare(b);
-    if(ai===-1) return -1; if(bi===-1) return 1;
-    return ai-bi;
+  // 그룹별 최소 _order 기준 정렬 (프로그램 = 시트 동일 순서)
+  const groupMinOrder={};
+  Object.entries(grouped).forEach(([k,gitems])=>{
+    groupMinOrder[k]=Math.min(...gitems.map(i=>i._order??9999));
   });
+  const sortedKeys=Object.keys(grouped).sort((a,b)=>groupMinOrder[a]-groupMinOrder[b]);
   document.getElementById("stock-groups").innerHTML=sortedKeys.map(gk=>{const gitems=grouped[gk];{
     const isCol=collapsedGroups.has(gk);
     const gTotal=gitems.reduce((a,i)=>a+totalQty(i),0);
