@@ -442,7 +442,16 @@ function renderStock(){
   const low=items.filter(isLow);
   const years=[...new Set(items.map(i=>String(i.year||"")).filter(Boolean))].sort().reverse();
   const byYear=filterYear==="전체"?items:items.filter(i=>String(i.year||"")==filterYear);
-  const colls=[...new Set(byYear.map(i=>i.collection).filter(Boolean))];
+  const COLL_ORDER=["PRADA","VEGGIE","BOUQUET","CIRCUIT X DISNEY","BOLD","MM","POCKET X BRATZ","FALL SEASON","JEWELRY"];
+  const rawColls=[...new Set(byYear.map(i=>i.collection).filter(Boolean))];
+  const colls=rawColls.sort((a,b)=>{
+    const ai=COLL_ORDER.indexOf(a);
+    const bi=COLL_ORDER.indexOf(b);
+    if(ai===-1&&bi===-1) return a.localeCompare(b);
+    if(ai===-1) return -1;
+    if(bi===-1) return 1;
+    return ai-bi;
+  });
   const ac=colls.includes(filterColl)?filterColl:"전체";
 
   document.getElementById("stock-stats").innerHTML=[
@@ -481,7 +490,15 @@ function renderStock(){
     document.getElementById("stock-groups").innerHTML=`<div style="text-align:center;padding:50px;font-size:14px;color:#475569">데이터를 불러오는 중...</div>`;return;
   }
 
-  document.getElementById("stock-groups").innerHTML=Object.entries(grouped).map(([gk,gitems])=>{
+  // 컬렉션 순서 정렬 (신규 컬렉션 상단)
+  const STOCK_ORDER=["PRADA","VEGGIE","BOUQUET","CIRCUIT X DISNEY","BOLD","MM","POCKET X BRATZ","FALL SEASON","JEWELRY"];
+  const sortedKeys=Object.keys(grouped).sort((a,b)=>{
+    const ai=STOCK_ORDER.indexOf(a), bi=STOCK_ORDER.indexOf(b);
+    if(ai===-1&&bi===-1) return a.localeCompare(b);
+    if(ai===-1) return -1; if(bi===-1) return 1;
+    return ai-bi;
+  });
+  document.getElementById("stock-groups").innerHTML=sortedKeys.map(gk=>{const gitems=grouped[gk];{
     const isCol=collapsedGroups.has(gk);
     const gTotal=gitems.reduce((a,i)=>a+totalQty(i),0);
     const sGk=gk.replace(/'/g,"\\'");
@@ -534,7 +551,7 @@ function renderStock(){
       </div>
       ${!isCol?`<div class="items-wrap"><div class="item-grid">${cards}</div></div>`:""}
     </div>`;
-  }).join("");
+  }}).join("");
 }
 
 // ── 렌더 장바구니 ──
