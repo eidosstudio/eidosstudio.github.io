@@ -913,9 +913,12 @@ function renderStock(){
   }
 
   // 컬렉션 순서 정렬 (신규 컬렉션 상단)
+  // grouped 키는 "2026 - VEGGIE" 형식이므로 컬렉션명만 추출해서 비교
   const STOCK_ORDER=["PRADA","VEGGIE","BOUQUET","CIRCUIT X DISNEY","BOLD","MM","POCKET X BRATZ","FALL SEASON","JEWELRY"];
+  const getCollFromKey=k=>k.includes(" - ")?k.split(" - ").slice(1).join(" - "):k;
   const sortedKeys=Object.keys(grouped).sort((a,b)=>{
-    const ai=STOCK_ORDER.indexOf(a), bi=STOCK_ORDER.indexOf(b);
+    const ac2=getCollFromKey(a), bc=getCollFromKey(b);
+    const ai=STOCK_ORDER.indexOf(ac2), bi=STOCK_ORDER.indexOf(bc);
     if(ai===-1&&bi===-1) return a.localeCompare(b);
     if(ai===-1) return -1; if(bi===-1) return 1;
     return ai-bi;
