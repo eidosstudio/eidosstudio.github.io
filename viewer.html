@@ -282,6 +282,21 @@ const db=getFirestore(initializeApp({
 }));
 
 let items=[],orders=[],cart=[];
+
+// 출고요청 상태 표시 (관리자 index.html과 동일한 상태값)
+const VIEW_STATUS={
+  "검토중":  {icon:"🔍", label:"검토중",  bg:"rgba(139,92,246,0.15)", color:"#a78bfa", border:"rgba(139,92,246,0.3)"},
+  "승인":    {icon:"✅", label:"승인됨",  bg:"rgba(59,130,246,0.15)", color:"#60a5fa", border:"rgba(59,130,246,0.3)"},
+  "준비중":  {icon:"🔄", label:"준비중",  bg:"rgba(251,191,36,0.15)", color:"#fbbf24", border:"rgba(251,191,36,0.3)"},
+  "출고대기":{icon:"📦", label:"출고대기",bg:"rgba(249,115,22,0.15)", color:"#fb923c", border:"rgba(249,115,22,0.3)"},
+  "출고완료":{icon:"✅", label:"출고완료",bg:"rgba(52,211,153,0.15)", color:"#34d399", border:"rgba(52,211,153,0.3)"},
+  "반려":    {icon:"❌", label:"반려",    bg:"rgba(239,68,68,0.15)",  color:"#ef4444", border:"rgba(239,68,68,0.3)"},
+  "취소":    {icon:"🚫", label:"취소됨",  bg:"rgba(100,116,139,0.15)",color:"#94a3b8", border:"rgba(100,116,139,0.3)"},
+};
+function statusBadgeHTML(status){
+  const s=VIEW_STATUS[status]||VIEW_STATUS["검토중"];
+  return `<span class="status-badge" style="background:${s.bg};color:${s.color};border:1px solid ${s.border}">${s.icon} ${s.label}</span>`;
+}
 let filterYear="전체",filterColl="전체";
 let collapsedGroups=new Set();
 let collapsedWeeks=new Set();
@@ -1216,17 +1231,7 @@ function renderOrders(){
               ${editable&&order.status==="검토중"?`<button onclick="openStoreNameEditModal('${order.id}','${order.storeName.replace(/'/g,"\\'")}')"
                 style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️ 수정</button>`:""}
             </div>
-            ${order.status==="취소"
-              ?`<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">🚫 취소됨</span>`
-              :order.status==="반려"
-              ?`<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">❌ 반려</span>`
-              :order.status==="출고완료"
-              ?`<span class="status-badge status-done">✅ 출고완료</span>`
-              :order.status==="승인"
-              ?`<span class="status-badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">✅ 승인됨</span>`
-              :order.status==="준비중"
-              ?`<span class="status-badge status-ready">🔄 준비중</span>`
-              :`<span class="status-badge" style="background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3)">🔍 검토중</span>`}
+            ${statusBadgeHTML(order.status)}
             <div style="font-size:10px;color:${isDark?"#475569":"#9ca3af"}">${order.date||""}</div>
           </div>
           ${(order.status==="취소"&&order.cancelReason)?`<div style="font-size:11px;padding:6px 10px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;margin-bottom:8px">취소 사유: ${order.cancelReason}</div>`:""}
