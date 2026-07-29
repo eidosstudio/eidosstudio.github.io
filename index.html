@@ -983,15 +983,57 @@ window.confirmQtyModal=async()=>{
 let photoTargetId=null;
 const photoInput=document.createElement("input");photoInput.type="file";photoInput.accept="image/*";
 photoInput.style.display="none";document.body.appendChild(photoInput);
-photoInput.addEventListener("change",e=>{
-  const file=e.target.files[0];if(!file||!photoTargetId)return;
-  const reader=new FileReader();
-  reader.onload=async ev=>{
+
+// 이미지 압축 함수
+function compressItemImage(file, maxW=800, quality=0.75){
+  return new Promise(resolve=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const canvas=document.createElement("canvas");
+        let w=img.width, h=img.height;
+        if(w>maxW){ h=Math.round(h*maxW/w); w=maxW; }
+        canvas.width=w; canvas.height=h;
+        const ctx=canvas.getContext("2d");
+        ctx.fillStyle="#ffffff";
+        ctx.fillRect(0,0,w,h);
+        ctx.drawImage(img,0,0,w,h);
+        let dataUrl=canvas.toDataURL("image/jpeg",quality);
+        // 900KB 넘으면 품질 낮춰서 재압축
+        let q=quality;
+        while(dataUrl.length>900000 && q>0.3){
+          q-=0.1;
+          dataUrl=canvas.toDataURL("image/jpeg",q);
+        }
+        resolve(dataUrl);
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+photoInput.addEventListener("change",async e=>{
+  const file=e.target.files[0];
+  if(!file||!photoTargetId){e.target.value="";return;}
+  showToast("📷 사진 압축 중...","#60a5fa");
+  try{
+    const compressed=await compressItemImage(file);
+    const sizeKB=Math.round(compressed.length/1024);
+    if(compressed.length>1000000){
+      showToast("사진 용량이 너무 커요. 더 작은 사진을 사용해주세요.","#f87171");
+      photoTargetId=null;e.target.value="";return;
+    }
     const item=items.find(i=>i.id===photoTargetId);
-    if(item){await setDoc(doc(collection(db,"items"),item.id),{...item,imageUrl:ev.target.result});}
-    photoTargetId=null;
-  };
-  reader.readAsDataURL(file);e.target.value="";
+    if(item){
+      await setDoc(doc(collection(db,"items"),item.id),{...item,imageUrl:compressed});
+      showToast(`✅ 사진 업로드 완료 (${sizeKB}KB)`);
+    }
+  }catch(err){
+    showToast("사진 업로드 오류: "+err.message,"#f87171");
+  }
+  photoTargetId=null;e.target.value="";
 });
 window.openPhoto=(id)=>{photoTargetId=id;photoInput.click();};
 
