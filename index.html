@@ -228,6 +228,14 @@ body.light #loading{background:#f5f5f7}
   </div></div>
 
   <div id="tab-orders" class="tab-pane"><div class="page-scroll">
+    <div style="position:relative;margin-bottom:12px">
+      <input id="order-search" type="search" placeholder="🔍 매장명 · 상품명 검색" autocomplete="off"
+        style="width:100%;padding:11px 38px 11px 14px;border-radius:12px;font-size:14px;font-family:inherit;outline:none;
+               background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.12);color:inherit;box-sizing:border-box">
+      <button id="order-search-clear" type="button"
+        style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);width:26px;height:26px;
+               border-radius:50%;background:rgba(255,255,255,0.1);border:none;color:#94a3b8;cursor:pointer;font-size:13px;line-height:1">✕</button>
+    </div>
     <div id="orders-list"></div>
     <div style="height:80px"></div>
   </div></div>
@@ -1067,6 +1075,17 @@ window.printOrder=(orderId)=>{
   setTimeout(()=>win.print(),400);
 };
 
+// 관리자: 출고요청 완전 삭제
+window.deleteOrder=async(orderId)=>{
+  const order=orders.find(o=>o.id===orderId);
+  const label=order?`${order.storeName} (${order.date||""})`:"";
+  if(!confirm("이 출고요청을 완전히 삭제할까요?\n"+label+"\n\n삭제하면 되돌릴 수 없어요."))return;
+  try{
+    await deleteDoc(doc(collection(db,"orders"),orderId));
+    showToast("🗑️ 삭제됐어요.");
+  }catch(e){showToast("삭제 오류: "+e.message,"#f87171");}
+};
+
 window.toggleStatusDropdown=(orderId)=>{
   const dd=document.getElementById("dd-"+orderId);
   if(!dd)return;
@@ -1086,15 +1105,32 @@ const STATUS_STYLE = {
   "취소":    {bg:"rgba(100,116,139,0.15)",color:"#64748b", border:"rgba(100,116,139,0.3)",icon:"🚫"},
 };
 
+let orderSearch="";
+function matchesOrderSearch(o,q){
+  if(!q) return true;
+  const hay=[
+    o.storeName||"",
+    o.reason||"",
+    o.handler||"",
+    ...(o.items||[]).map(it=>`${it.itemName||""} ${it.optName||""} ${it.collection||""}`)
+  ].join(" ").toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(w=>hay.includes(w));
+}
+
 function renderOrders(){
   const currentWeek=getWeekLabel(new Date().toISOString());
   const now=new Date();
   const currentMonthKey=now.getFullYear()+"-"+(now.getMonth()+1);
   const currentYearKey=""+now.getFullYear();
-  const banner="";
+  const q=orderSearch.trim();
+  const searching=!!q;
+  const filteredOrders=orders.filter(o=>matchesOrderSearch(o,q));
+  const banner=searching
+    ? "<div style=\"background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:12px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#a5b4fc\">🔍 \""+escH(q)+"\" 검색 결과 <strong>"+filteredOrders.length+"건</strong></div>"
+    : "";
 
   const weekGrouped={};
-  orders.forEach(o=>{
+  filteredOrders.forEach(o=>{
     const lbl=o.weekLabel||getWeekLabel(o.date||new Date().toISOString());
     if(!weekGrouped[lbl])weekGrouped[lbl]=[];
     weekGrouped[lbl].push(o);
@@ -1132,13 +1168,13 @@ function renderOrders(){
 
   const el=document.getElementById("orders-list");
   if(!Object.keys(weekGrouped).length){
-    el.innerHTML=banner+"<div style=\"text-align:center;padding:40px 20px;font-size:14px;color:#475569\">출고 요청 내역이 없어요</div>";
+    el.innerHTML=banner+"<div style=\"text-align:center;padding:40px 20px;font-size:14px;color:#475569\">"+(searching?"검색 결과가 없어요":"출고 요청 내역이 없어요")+"</div>";
     return;
   }
 
   let html=banner;
   Object.entries(yearGrouped).forEach(([yKey,yData])=>{
-    const yCol=collapsedYears.has(yKey);
+    const yCol=searching?false:collapsedYears.has(yKey);
     const yTotal=Object.values(yData.months).reduce((a,m)=>Object.values(m.weeks).reduce((b,w)=>b+w.length,0)+a,0);
     html+="<div style=\"margin-bottom:8px\">";
     html+="<div onclick=\"window.toggleYear('"+yKey+"')\" style=\"display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;cursor:pointer;margin-bottom:4px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)\">";
@@ -1148,7 +1184,7 @@ function renderOrders(){
     html+="<span style=\"font-size:11px;color:#6366f1;font-weight:700\">"+(yCol?"▶":"▼")+"</span></div>";
     if(!yCol){
       Object.entries(yData.months).forEach(([mKey,mData])=>{
-        const mCol=collapsedMonths.has(mKey);
+        const mCol=searching?false:collapsedMonths.has(mKey);
         const mTotal=Object.values(mData.weeks).reduce((a,w)=>a+w.length,0);
         html+="<div style=\"margin-left:8px;margin-bottom:6px\">";
         html+="<div onclick=\"window.toggleMonth('"+mKey+"')\" style=\"display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:8px;cursor:pointer;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05)\">";
@@ -1159,7 +1195,7 @@ function renderOrders(){
         if(!mCol){
           Object.entries(mData.weeks).forEach(([week,wOrders])=>{
             const wk=week.replace(/[/]/g,"_");
-            const wCol=collapsedWeeks.has(wk);
+            const wCol=searching?false:collapsedWeeks.has(wk);
             const wParts=week.match(/(\d+)\/(\d+)/);
             let shipDate="차주 화요일";
             if(wParts){
@@ -1290,6 +1326,28 @@ function renderOrderCard(order){
 function escH(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function escAttr(s){return String(s||"").replace(/"/g,"&quot;");}
 
+
+// ── 출고요청 검색 ──
+(function initOrderSearch(){
+  const input=document.getElementById("order-search");
+  const clearBtn=document.getElementById("order-search-clear");
+  if(!input) return;
+  let timer=null;
+  const apply=()=>{
+    orderSearch=input.value;
+    if(clearBtn) clearBtn.style.display=input.value?"block":"none";
+    renderOrders();
+  };
+  input.addEventListener("input",()=>{
+    clearTimeout(timer);
+    timer=setTimeout(apply,180);
+  });
+  input.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){ input.value=""; apply(); input.blur(); }
+    if(e.key==="Enter"){ clearTimeout(timer); apply(); input.blur(); }
+  });
+  clearBtn?.addEventListener("click",()=>{ input.value=""; apply(); input.focus(); });
+})();
 
 window.toggleYear=yk=>{if(collapsedYears.has(yk))collapsedYears.delete(yk);else collapsedYears.add(yk);renderOrders();};
 window.toggleMonth=mk=>{if(collapsedMonths.has(mk))collapsedMonths.delete(mk);else collapsedMonths.add(mk);renderOrders();};
