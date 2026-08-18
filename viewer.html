@@ -214,7 +214,7 @@ body.light #loading{background:#f5f5f7}
       <div id="type-notice" style="font-size:11px;color:#475569;margin-top:4px"></div>
     </div>
     <div class="field-wrap">
-      <div class="field-label"><span data-i18n="lbl_details">상세 사유</span> * <span style="font-size:10px;color:#475569">(<span data-i18n="hint_specific">구체적으로</span>)</span></div>
+      <div class="field-label"><span data-i18n="lbl_details">상세 사유</span> <span id="reason-required-mark">*</span> <span style="font-size:10px;color:#475569">(<span data-i18n="hint_specific">구체적으로</span>)</span></div>
       <textarea class="field-input" id="order-reason" rows="2" data-i18n-ph="ph_reason" placeholder="예: 전시용 SET1 PLATE 낙하로 파손" style="resize:none;line-height:1.5"></textarea>
     </div>
     <div class="field-wrap" id="photo-wrap">
@@ -376,8 +376,18 @@ function applyStaticI18n(){
   updateHeaderSub();
   syncPhotoLabel();
 }
+// 상세 사유 필수 표시 (오픈은 선택 사항)
+function syncReasonMark(){
+  const mark=document.getElementById("reason-required-mark");
+  if(!mark) return;
+  const sel=document.querySelector('input[name="order-type"]:checked')?.value;
+  if(sel==="오픈"){ mark.textContent="("+t("req_optional")+")"; mark.style.color="#475569"; mark.style.fontSize="10px"; }
+  else { mark.textContent="*"; mark.style.color=""; mark.style.fontSize=""; }
+}
+
 // 요청 유형에 따른 사진 필수/선택 라벨 (언어 전환 시에도 유지)
 function syncPhotoLabel(){
+  syncReasonMark();
   const el=document.getElementById("photo-required-label");
   if(!el) return;
   const sel=document.querySelector('input[name="order-type"]:checked')?.value;
@@ -811,6 +821,7 @@ window.addOpenOrderToCart = () => {
 
 // 요청 유형 변경 핸들러
 window.onOrderTypeChange=()=>{
+  syncReasonMark();
   const type=document.querySelector('input[name="order-type"]:checked')?.value;
   const notice=document.getElementById("type-notice");
   const reqLabel=document.getElementById("photo-required-label");
@@ -955,9 +966,9 @@ window.confirmOrder=async(skipLateCheck=false)=>{
   const reason=document.getElementById("order-reason").value.trim();
   if(!storeName){showToast(t("ms_need_store"),"#f87171");return;}
   if(!orderType){showToast(t("ms_need_type"),"#f87171");return;}
-  if(!reason){showToast(t("ms_need_detail"),"#f87171");return;}
+  // 오픈 매장 발주는 상세 사유 선택 사항
+  if(orderType!=="오픈" && !reason){showToast(t("ms_need_detail"),"#f87171");return;}
   if(orderType==="파손"&&orderPhotosBase64.length===0){showToast(t("ms_need_photo"),"#f87171");return;}
-  if(orderType==="오픈"&&!reason){showToast(t("ms_need_open"),"#f87171");return;}
 
   // 늦은 접수 경고 팝업
   if(!skipLateCheck && isLateOrder()){
@@ -970,7 +981,7 @@ window.confirmOrder=async(skipLateCheck=false)=>{
     await addDoc(collection(db,"orders"),{
       storeName,status:"검토중",
       orderType:orderType||"",
-      reason:`[${orderType}] ${reason}`,
+      reason:reason?`[${orderType}] ${reason}`:`[${orderType}]`,
       photos:orderPhotosBase64,
       weekLabel:getWeekLabel(new Date().toISOString()),
       createdAt:serverTimestamp(),
