@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="GM 재고">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="manifest" href="/manifest-admin.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <title>재고관리 (관리자)</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet">
 <style>
@@ -1048,6 +1049,175 @@ window.openPhoto=(id)=>{photoTargetId=id;photoInput.click();};
 
 
 // ── 렌더 출고요청 ──
+
+// ══════════ 쉬핑 리스트 다운로드 ══════════
+// 구글 시트의 [쉬핑 양식]을 그대로 복제하고 데이터만 채워 엑셀로 내려받는다.
+const SHIP_TPL_URL = "https://script.google.com/macros/s/AKfycbzs6SdmrpMS4D5WjsCKJ1dwqk7gqWzCzfx-iX24KkuReOm0EHfT9Py82O6ruHck0pfRIQ/exec";
+let __shipCache = null;
+
+async function loadShipTemplate(){
+  if(__shipCache) return __shipCache;
+  const res = await fetch(SHIP_TPL_URL);
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || "양식을 불러오지 못했어요");
+  __shipCache = json;
+  return json;
+}
+
+const px2w = px => Math.max(1, Math.round((px - 5) / 7 * 100) / 100);
+const hexArgb = hex => {
+  if(!hex) return null;
+  const h = String(hex).replace("#","").toUpperCase();
+  if(h === "FFFFFF" || h === "WHITE") return null;
+  return h.length === 6 ? ("FF" + h) : null;
+};
+const colLetter = n => { let s=""; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26);} return s; };
+
+window.downloadShippingList = async (orderId) => {
+  const order = orders.find(o => o.id === orderId);
+  if(!order) return;
+  if(typeof ExcelJS === "undefined"){ showToast("엑셀 라이브러리를 불러오지 못했어요","#f87171"); return; }
+  if(SHIP_TPL_URL.indexOf("@@") === 0){ showToast("쉬핑 양식 주소가 설정되지 않았어요","#f87171"); return; }
+
+  showToast("✈️ 쉬핑 리스트 만드는 중...","#60a5fa");
+  let T, SHIP;
+  try{
+    const data = await loadShipTemplate();
+    T = data.template; SHIP = data.ship || {};
+  }catch(err){
+    showToast("양식 오류: " + err.message, "#f87171"); return;
+  }
+
+  const M = T.marks || {};
+  if(!M.ROWS){ showToast("양식에 {{ROWS}} 표시가 없어요","#f87171"); return; }
+
+  const rowsData = (order.items||[]).map((it,i) => {
+    const item = items.find(x => x.id === it.itemId) || {};
+    const s = SHIP[it.itemId] || {};
+    const qty = Number(it.qty) || 0;
+    const price = Number(s.price) || 0;
+    const w = Number(s.weight) || 0;
+    return {
+      no: i+1,
+      collection: it.collection || "",
+      name: (it.itemName||"") + (it.optName ? "\n["+it.optName+"]" : ""),
+      material: s.material || "",
+      size: s.size || item.size || "",
+      qty, unit: (!it.unit || it.unit === "개") ? "EA" : it.unit,
+      price, total: qty * price,
+      origin: s.origin || "", maker: s.maker || "", label: s.label || "",
+      weight: w,
+    };
+  });
+
+  const wb = new ExcelJS.Workbook();
+  const store = String(order.storeName||"").split("_")[0].trim();
+  const ws = wb.addWorksheet(store.slice(0,28) || "SHIPPING", {views:[{showGridLines:false}]});
+
+  (T.colWidths||[]).forEach((px,i) => { ws.getColumn(i+1).width = px2w(px); });
+
+  const ROW_R = M.ROWS.r;
+  const nItems = rowsData.length;
+  const shift = Math.max(0, nItems - 1);
+  const mapRow = r => (r <= ROW_R) ? r : r + shift;
+
+  const copyCell = (sr, sc, tr, tc, value) => {
+    const cell = ws.getCell(tr, tc);
+    const i = sr-1, j = sc-1;
+    if(value !== undefined) cell.value = (value === "" || value == null) ? null : value;
+    else { const v = T.values[i][j]; cell.value = (v === "" || v == null) ? null : v; }
+    const bg = hexArgb(T.bgs[i][j]);
+    if(bg) cell.fill = {type:"pattern",pattern:"solid",fgColor:{argb:bg}};
+    cell.font = {
+      name: T.families[i][j] || "맑은 고딕",
+      size: T.sizes[i][j] || 10,
+      bold: /bold/i.test(T.bolds[i][j] || ""),
+      color: {argb: hexArgb(T.colors[i][j]) || "FF000000"},
+    };
+    cell.alignment = {
+      horizontal: (T.hAligns[i][j]||"left").replace("general","left"),
+      vertical: T.vAligns[i][j] || "middle",
+      wrapText: !!T.wraps[i][j],
+    };
+    const thin = {style:"thin", color:{argb:"FF9AA0AA"}};
+    cell.border = {top:thin,left:thin,bottom:thin,right:thin};
+    const fmt = T.formats[i][j];
+    if(fmt && fmt !== "0.###############") cell.numFmt = fmt;
+    return cell;
+  };
+
+  for(let r=1; r<=T.lastRow; r++){
+    if(r === ROW_R) continue;
+    const tr = mapRow(r);
+    for(let cI=1; cI<=T.lastCol; cI++) copyCell(r, cI, tr, cI);
+    if(T.rowHeights[r-1]) ws.getRow(tr).height = T.rowHeights[r-1];
+  }
+
+  const COL = {no:2,coll:3,name:4,img:5,mat:6,size:7,qty:8,unit:9,price:10,total:11,
+               hs:12,origin:13,maker:14,label:15,outer:16,weight:17};
+  rowsData.forEach((d, k) => {
+    const tr = ROW_R + k;
+    for(let cI=1; cI<=T.lastCol; cI++){
+      let v = "";
+      if(cI === COL.no) v = d.no;
+      else if(cI === COL.coll) v = d.collection;
+      else if(cI === COL.name) v = d.name;
+      else if(cI === COL.mat) v = d.material;
+      else if(cI === COL.size) v = d.size;
+      else if(cI === COL.qty) v = d.qty;
+      else if(cI === COL.unit) v = d.unit;
+      else if(cI === COL.price) v = d.price || null;
+      else if(cI === COL.total) v = d.total || null;
+      else if(cI === COL.origin) v = d.origin;
+      else if(cI === COL.maker) v = d.maker;
+      else if(cI === COL.label) v = d.label;
+      else if(cI === COL.weight) v = d.weight || null;
+      copyCell(ROW_R, cI, tr, cI, v);
+    }
+    const lines = Math.max(
+      String(d.maker||"").split("\n").length,
+      String(d.label||"").split("\n").length,
+      String(d.name||"").split("\n").length, 2);
+    ws.getRow(tr).height = Math.min(16*lines + 10, 130);
+  });
+
+  const totalR = mapRow(ROW_R + 1);
+  const first = ROW_R, last = ROW_R + nItems - 1;
+  if(nItems > 0){
+    ws.getCell(totalR, COL.qty).value   = {formula:"SUM("+colLetter(COL.qty)+first+":"+colLetter(COL.qty)+last+")"};
+    ws.getCell(totalR, COL.total).value = {formula:"SUM("+colLetter(COL.total)+first+":"+colLetter(COL.total)+last+")"};
+    ws.getCell(totalR, COL.weight).value= {formula:"SUMPRODUCT("+colLetter(COL.qty)+first+":"+colLetter(COL.qty)+last+","+colLetter(COL.weight)+first+":"+colLetter(COL.weight)+last+")"};
+  }
+
+  (T.merges||[]).forEach(m => {
+    if(m.r === ROW_R) return;
+    const r = mapRow(m.r);
+    try{ ws.mergeCells(r, m.c, r + m.nr - 1, m.c + m.nc - 1); }catch(e){}
+  });
+
+  const putMark = (mark, val) => {
+    if(!mark) return;
+    ws.getCell(mapRow(mark.r), mark.c).value = val || null;
+  };
+  putMark(M.PROJECT, "");
+  putMark(M.STORE, store);
+  putMark(M.BOX, "");
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "Shipping_list_" + store.replace(/\s+/g,"_") + "_" + (order.date||"") + ".xlsx";
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  const missing = rowsData.filter(d => !d.price || !d.maker);
+  showToast(missing.length
+    ? "✈️ 다운로드 완료 (쉬핑 정보 미입력: " + missing.length + "품목)"
+    : "✈️ 쉬핑 리스트 다운로드 완료", missing.length ? "#fbbf24" : "#34d399");
+};
+
+
 // 출고 지시서 출력
 window.printOrder=(orderId)=>{
   const order=orders.find(o=>o.id===orderId);
@@ -1246,6 +1416,9 @@ function renderOrderCard(order){
   };
   const steps=nextSteps[s]||[];
   const canPrint=["승인","준비중","출고대기","출고완료"].includes(s);
+  // 해외 매장(매장명에 _ KR 이 없는 건)만 쉬핑 리스트 대상
+  const isOverseas = !String(order.storeName||"").toUpperCase().includes("_ KR");
+  const canShip = canPrint && isOverseas;
 
   // 상태 드롭다운 HTML
   let ddHtml="";
@@ -1280,6 +1453,7 @@ function renderOrderCard(order){
     +"<div style=\"font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">"+escH(order.storeName)+"</div>"
     +(!isCanceled?"<button class=\"store-edit-btn\" data-oid=\""+order.id+"\" data-sn=\""+escAttr(order.storeName)+"\" title=\"매장명 수정\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0\">✏️</button>":"")
     +(canPrint?"<button class=\"print-order-btn\" data-oid=\""+order.id+"\" title=\"출고 지시서 출력\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);color:#94a3b8;cursor:pointer;flex-shrink:0\">🖨️</button>":"")
+    +(canShip?"<button class=\"ship-order-btn\" data-oid=\""+order.id+"\" title=\"쉬핑 리스트 다운로드\" style=\"padding:2px 6px;border-radius:5px;font-size:11px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);color:#34d399;cursor:pointer;flex-shrink:0\">✈️</button>":"")
     +"</div>";
 
   // 헤더 행 (1 depth)
@@ -1372,6 +1546,8 @@ document.addEventListener("click", e=>{
   // 출고 지시서 출력
   const printBtn = e.target.closest(".print-order-btn");
   if(printBtn){ window.printOrder(printBtn.dataset.oid); return; }
+  const shipBtn = e.target.closest(".ship-order-btn");
+  if(shipBtn){ window.downloadShippingList(shipBtn.dataset.oid); return; }
   // 상태 드롭다운 토글
   const statusBtn = e.target.closest(".status-toggle-btn");
   if(statusBtn){ window.toggleStatusDropdown(statusBtn.dataset.oid); return; }
