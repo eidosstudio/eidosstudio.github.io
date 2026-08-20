@@ -445,6 +445,35 @@ window.confirmOrder=async()=>{
 };
 
 // ── 렌더 재고 ──
+
+// ── 재고 카드 버튼 이벤트 위임 ──
+// 상품명에 줄바꿈이나 따옴표가 들어가도 안전하도록 onclick 대신 위임을 쓴다.
+document.addEventListener("click", e => {
+  const nameBtn = e.target.closest(".item-name-btn");
+  if(nameBtn){
+    const it = items.find(x => x.id === nameBtn.dataset.iid);
+    if(it) window.openItemNameModal(it.id, it.name || "");
+    return;
+  }
+  const optBtn = e.target.closest(".opt-qty-btn");
+  if(optBtn){
+    const it = items.find(x => x.id === optBtn.dataset.iid);
+    if(!it) return;
+    const oi = parseInt(optBtn.dataset.oi);
+    const opt = (it.options || [])[oi];
+    window.openQtyModal(it.id, opt ? opt.name : null, it.name || "", parseInt(optBtn.dataset.qty) || 0);
+    return;
+  }
+  const qtyBtn = e.target.closest(".item-qty-btn");
+  if(qtyBtn){
+    const it = items.find(x => x.id === qtyBtn.dataset.iid);
+    if(!it) return;
+    window.openQtyModal(it.id, null, it.name || "", parseInt(qtyBtn.dataset.qty) || 0);
+    return;
+  }
+});
+
+
 function renderStock(){
   const total=items.reduce((a,i)=>a+totalQty(i),0);
   const low=items.filter(isLow);
@@ -526,7 +555,7 @@ function renderStock(){
         <div class="item-body">
           <div class="item-name" style="display:flex;align-items:center;gap:4px">
             ${item.name}
-            <button onclick="window.openItemNameModal('${item.id}','${nm}')" style="padding:1px 5px;border-radius:4px;font-size:9px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️</button>
+            <button class="item-name-btn" data-iid="${item.id}" style="padding:1px 5px;border-radius:4px;font-size:9px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;flex-shrink:0">✏️</button>
           </div>
           ${item.material?`<div class="item-sub">${item.material}</div>`:""}
           ${item.size?`<div class="item-sub" style="color:#6366f1;opacity:.85">${item.size}</div>`:""}
@@ -539,11 +568,10 @@ function renderStock(){
                 <span class="opt-name">${o.name}${o.size?`<br><span style="font-size:9px;color:#6366f1;opacity:.8">${o.size}</span>`:""}</span>
                 ${oLow?`<span style="font-size:9px;flex-shrink:0">🔴</span>`:""}
                 <span class="opt-qty" style="color:${oLow?"#ef4444":(isDark?"#e2e8f0":"#111827")};flex-shrink:0">${o.quantity||0}<span class="unit"> ${item.unit||"개"}</span></span>
-                <button data-iid="${item.id}" data-oi="${oi}" data-nm="${item.name.replace(/"/g,"&quot;")}" data-qty="${o.quantity||0}"
-                  onclick="(function(b){window.openQtyModal(b.dataset.iid,window.__opts[b.dataset.iid][parseInt(b.dataset.oi)],b.dataset.nm,parseInt(b.dataset.qty))})(this)"
+                <button class="opt-qty-btn" data-iid="${item.id}" data-oi="${oi}" data-qty="${o.quantity||0}"
                   style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;flex-shrink:0;cursor:pointer">수정</button>
               </div>`;}).join("")}</div>`
-          :`<div class="card-actions"><button onclick="window.openQtyModal('${item.id}',null,'${nm}',${qty})" style="width:100%;padding:6px 0;border-radius:7px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer">수량 수정</button></div>`}
+          :`<div class="card-actions"><button class="item-qty-btn" data-iid="${item.id}" data-qty="${qty}" style="width:100%;padding:6px 0;border-radius:7px;font-size:10px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer">수량 수정</button></div>`}
       </div>`;
     }).join("");
     return`<div class="collection-group">
@@ -1087,9 +1115,14 @@ window.downloadShippingList = async (orderId) => {
     a.click();
     URL.revokeObjectURL(a.href);
 
-    showToast(json.missing
+    // 임시 파일 정리가 실패하면 알려준다 (구글 드라이브에 파일이 쌓이는 것을 막기 위해)
+    const cleanFailed = json.cleanup && String(json.cleanup).indexOf("failed") === 0;
+    let msg = json.missing
       ? "✈️ 다운로드 완료 (쉬핑 정보 미입력: " + json.missing + "품목)"
-      : "✈️ 쉬핑 리스트 다운로드 완료", json.missing ? "#fbbf24" : "#34d399");
+      : "✈️ 쉬핑 리스트 다운로드 완료";
+    if(cleanFailed) msg += " ⚠️ 임시 파일 정리 실패";
+    showToast(msg, cleanFailed ? "#f87171" : (json.missing ? "#fbbf24" : "#34d399"));
+    if(cleanFailed) console.warn("임시 파일 정리 실패:", json.cleanup);
   }catch(err){
     showToast("쉬핑 리스트 오류: " + err.message, "#f87171");
   }
