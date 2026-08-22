@@ -984,7 +984,23 @@ window.confirmOrder=async(skipLateCheck=false)=>{
     showLateOrderModal(shipDate);
     return;
   }
-  // 발주 저장 (재고 차감 없음 - 관리자 승인 후 차감)
+  // 재고 차감 — 발주 요청 시점에 즉시 뺀다 (오버부킹 방지)
+  // 취소·반려 시에는 관리자 화면에서 되돌린다
+  for(const c of cart){
+    const item=items.find(i=>i.id===c.itemId);
+    if(!item) continue;
+    const clone=JSON.parse(JSON.stringify(item));
+    if(c.optName&&clone.options){
+      const o=clone.options.find(x=>x.name===c.optName);
+      if(o) o.quantity=Math.max(0,(o.quantity||0)-c.qty);
+    }else{
+      clone.quantity=Math.max(0,(clone.quantity||0)-c.qty);
+    }
+    try{ await setDoc(doc(collection(db,"items"),item.id),clone); }
+    catch(e){ console.error("재고 차감 실패:",item.name,e); }
+  }
+
+  // 발주 저장
   try{
     await addDoc(collection(db,"orders"),{
       storeName,status:"검토중",
