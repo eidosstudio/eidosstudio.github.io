@@ -844,10 +844,13 @@ window.confirmApprove=async(orderId)=>{
   const handler=getSelectedHandler();
   if(!handler){showToast("담당자를 선택해주세요","#f87171");return;}
   const order=orders.find(o=>o.id===orderId);if(!order)return;
-  // 재고는 발주 요청 시 이미 차감됨 → 여기서는 차감 없음
   const isApproveOnly = order.status==="검토중"||order.status==="반려";
   const newStatus = isApproveOnly?"승인":"출고완료";
+  // 반려·취소 건을 되살리는 경우 재고를 다시 차감한다
+  // (그 상태에서는 이미 복원돼 있으므로)
+  const needDeduct = !STOCK_HELD.includes(order.status) && STOCK_HELD.includes(newStatus);
   try{
+    if(needDeduct) await adjustStock(order,-1);
     await setDoc(doc(collection(db,"orders"),orderId),{...order,status:newStatus,handler,handledAt:new Date().toISOString()},{merge:false});
     document.getElementById("approve-modal")?.remove();
     showToast(isApproveOnly?`✅ ${handler}님이 승인했어요.`:`✅ ${handler}님이 출고완료 처리했어요.`);
@@ -887,16 +890,8 @@ window.confirmReject=async(orderId)=>{
   if(!handler){showToast("담당자를 선택해주세요","#f87171");return;}
   if(!reason){showToast("반려 사유를 입력해주세요","#f87171");return;}
   const order=orders.find(o=>o.id===orderId);if(!order)return;
-  // 발주 시 차감된 재고를 되돌린다 (아직 되돌리지 않은 상태에서만)
-  if(["검토중","승인","준비중","출고대기"].includes(order.status)){
-    for(const it of order.items){
-      const item=items.find(i=>i.id===it.itemId);if(!item)continue;
-      const clone=JSON.parse(JSON.stringify(item));
-      if(it.optName&&clone.options){const o=clone.options.find(x=>x.name===it.optName);if(o)o.quantity=(o.quantity||0)+it.qty;}
-      else clone.quantity=(clone.quantity||0)+it.qty;
-      try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
-    }
-  }
+  // 재고에서 빠져 있던 상태라면 되돌린다 (중복 복원 방지)
+  if(STOCK_HELD.includes(order.status)) await adjustStock(order,+1);
   try{
     await setDoc(doc(collection(db,"orders"),orderId),{...order,status:"반려",rejectReason:reason,handler,handledAt:new Date().toISOString()},{merge:false});
     document.getElementById("reject-modal")?.remove();
@@ -996,19 +991,8 @@ window.confirmCancel=async(orderId)=>{
   const reason=document.getElementById("cancel-reason")?.value.trim();
   if(!reason){showToast("취소 사유를 입력해주세요","#f87171");return;}
   const order=orders.find(o=>o.id===orderId);if(!order)return;
-  // 출고완료 건은 이미 출고됐으므로 재고 복원 안 함
-  // 검토중/승인/준비중 건만 복원 (발주 시 차감됐으므로)
-  // 반려 건은 반려 시점에 이미 복원했으므로 여기서 또 복원하지 않는다
-  const cancelableStatuses = ["검토중","승인","준비중","출고대기"];
-  if(cancelableStatuses.includes(order.status)){
-    for(const it of order.items){
-      const item=items.find(i=>i.id===it.itemId);if(!item)continue;
-      const clone=JSON.parse(JSON.stringify(item));
-      if(it.optName&&clone.options){const o=clone.options.find(x=>x.name===it.optName);if(o)o.quantity=(o.quantity||0)+it.qty;}
-      else clone.quantity=(clone.quantity||0)+it.qty;
-      try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
-    }
-  }
+  // 재고에서 빠져 있던 상태라면 되돌린다 (반려·취소 건은 이미 복원돼 있으므로 건너뜀)
+  if(STOCK_HELD.includes(order.status)) await adjustStock(order,+1);
   try{
     await setDoc(doc(collection(db,"orders"),orderId),{...order,status:"취소",cancelReason:reason,canceledAt:new Date().toISOString()});
     document.getElementById("cancel-modal")?.remove();
@@ -1216,11 +1200,27 @@ window.printOrder=(orderId)=>{
 // 관리자: 출고요청 완전 삭제
 window.deleteOrder=async(orderId)=>{
   const order=orders.find(o=>o.id===orderId);
-  const label=order?`${order.storeName} (${order.date||""})`:"";
-  if(!confirm("이 출고요청을 완전히 삭제할까요?\n"+label+"\n\n삭제하면 되돌릴 수 없어요."))return;
+  if(!order){showToast("주문을 찾을 수 없어요","#f87171");return;}
+  const label=`${order.storeName} (${order.date||""})`;
+  // 재고에서 빠져 있는 상태면 삭제 시 되돌려야 한다
+  let held=STOCK_HELD.includes(order.status);
+
+  // 출고완료 건은 이미 물건이 나갔을 수 있으므로 복원 여부를 따로 묻는다
+  if(order.status==="출고완료"){
+    held=confirm("출고완료된 요청입니다.\n"+label
+      +"\n\n재고를 복원할까요?"
+      +"\n\n[확인] 잘못 처리된 건 — 재고를 되돌립니다"
+      +"\n[취소] 실제 출고된 건 — 재고를 그대로 둡니다");
+  }
+
+  const msg="이 출고요청을 완전히 삭제할까요?\n"+label+"\n상태: "+order.status
+    +(held?"\n\n※ 차감된 재고가 복원됩니다.":"\n\n※ 재고는 변동되지 않습니다.")
+    +"\n\n삭제하면 되돌릴 수 없어요.";
+  if(!confirm(msg))return;
   try{
+    if(held) await adjustStock(order,+1);        // 재고 복원
     await deleteDoc(doc(collection(db,"orders"),orderId));
-    showToast("🗑️ 삭제됐어요.");
+    showToast(held?"🗑️ 삭제됐어요. 재고가 복원됐어요.":"🗑️ 삭제됐어요.");
   }catch(e){showToast("삭제 오류: "+e.message,"#f87171");}
 };
 
