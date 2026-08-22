@@ -804,11 +804,39 @@ window.openApproveModal=orderId=>{
 };
 
 // 단순 상태 변경 (담당자 불필요)
+// 재고에서 빠져 있는 상태 (발주 시 차감된 채로 유지되는 상태)
+const STOCK_HELD = ["검토중","승인","준비중","출고대기","출고완료"];
+
+// 재고를 되돌리거나 다시 빼는 공통 처리
+async function adjustStock(order, sign){
+  for(const it of (order.items||[])){
+    const item=items.find(i=>i.id===it.itemId); if(!item) continue;
+    const clone=JSON.parse(JSON.stringify(item));
+    const q=Number(it.qty)||0;
+    if(it.optName&&clone.options){
+      const o=clone.options.find(x=>x.name===it.optName);
+      if(o) o.quantity=Math.max(0,(o.quantity||0)+sign*q);
+    }else{
+      clone.quantity=Math.max(0,(clone.quantity||0)+sign*q);
+    }
+    try{ await setDoc(doc(collection(db,"items"),item.id),clone); }
+    catch(e){ console.error("재고 조정 실패:",item.name,e); }
+  }
+}
+
 window.setStatus=async(orderId,newStatus)=>{
   const order=orders.find(o=>o.id===orderId);if(!order)return;
+  const wasHeld = STOCK_HELD.includes(order.status);   // 지금 재고에서 빠져 있나
+  const willHold = STOCK_HELD.includes(newStatus);     // 바꾼 뒤에도 빠져 있어야 하나
+  let note="";
   try{
+    // 취소·반려 → 진행 상태로 되돌리면 재고를 다시 뺀다
+    if(!wasHeld && willHold){ await adjustStock(order,-1); note=" 재고가 차감됐어요."; }
+    // 진행 상태 → 취소·반려로 바꾸면 재고를 되돌린다
+    else if(wasHeld && !willHold){ await adjustStock(order,+1); note=" 재고가 복원됐어요."; }
+
     await setDoc(doc(collection(db,"orders"),orderId),{...order,status:newStatus},{merge:false});
-    showToast(`🔄 ${newStatus}으로 변경됐어요.`);
+    showToast(`🔄 ${newStatus}으로 변경됐어요.${note}`);
   }catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
@@ -859,10 +887,20 @@ window.confirmReject=async(orderId)=>{
   if(!handler){showToast("담당자를 선택해주세요","#f87171");return;}
   if(!reason){showToast("반려 사유를 입력해주세요","#f87171");return;}
   const order=orders.find(o=>o.id===orderId);if(!order)return;
+  // 발주 시 차감된 재고를 되돌린다 (아직 되돌리지 않은 상태에서만)
+  if(["검토중","승인","준비중","출고대기"].includes(order.status)){
+    for(const it of order.items){
+      const item=items.find(i=>i.id===it.itemId);if(!item)continue;
+      const clone=JSON.parse(JSON.stringify(item));
+      if(it.optName&&clone.options){const o=clone.options.find(x=>x.name===it.optName);if(o)o.quantity=(o.quantity||0)+it.qty;}
+      else clone.quantity=(clone.quantity||0)+it.qty;
+      try{await setDoc(doc(collection(db,"items"),item.id),clone);}catch(e){}
+    }
+  }
   try{
     await setDoc(doc(collection(db,"orders"),orderId),{...order,status:"반려",rejectReason:reason,handler,handledAt:new Date().toISOString()},{merge:false});
     document.getElementById("reject-modal")?.remove();
-    showToast(`❌ ${handler}님이 반려 처리했어요.`);
+    showToast(`❌ ${handler}님이 반려 처리했어요. 재고가 복원됐어요.`);
   }catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
@@ -960,7 +998,8 @@ window.confirmCancel=async(orderId)=>{
   const order=orders.find(o=>o.id===orderId);if(!order)return;
   // 출고완료 건은 이미 출고됐으므로 재고 복원 안 함
   // 검토중/승인/준비중 건만 복원 (발주 시 차감됐으므로)
-  const cancelableStatuses = ["검토중","승인","준비중","반려"];
+  // 반려 건은 반려 시점에 이미 복원했으므로 여기서 또 복원하지 않는다
+  const cancelableStatuses = ["검토중","승인","준비중","출고대기"];
   if(cancelableStatuses.includes(order.status)){
     for(const it of order.items){
       const item=items.find(i=>i.id===it.itemId);if(!item)continue;
@@ -1011,7 +1050,26 @@ window.confirmQtyModal=async()=>{
   const clone=JSON.parse(JSON.stringify(item));
   if(qtyOptName&&clone.options){const o=clone.options.find(x=>x.name===qtyOptName);if(o)o.quantity=val;}
   else clone.quantity=val;
-  try{await setDoc(doc(collection(db,"items"),item.id),clone);document.getElementById("qty-modal-dyn")?.remove();showToast("수량 수정됐어요 ✅");}
+  // 수정 전 수량 (이력에 남긴다)
+  const before = qtyOptName && item.options
+    ? (item.options.find(x=>x.name===qtyOptName)?.quantity ?? 0)
+    : (item.quantity ?? 0);
+  try{
+    await setDoc(doc(collection(db,"items"),item.id),clone);
+    // 수량 변경 이력 저장 — 나중에 재고가 안 맞을 때 추적할 수 있게
+    try{
+      await addDoc(collection(db,"stockLogs"),{
+        itemId:item.id, itemName:item.name||"", collection:item.collection||"",
+        optName:qtyOptName||null,
+        before:before, after:val, diff:val-before,
+        type:"수동수정",
+        date:todayDate(), time:nowTime(),
+        createdAt:serverTimestamp(),
+      });
+    }catch(e){ console.error("이력 저장 실패:",e); }
+    document.getElementById("qty-modal-dyn")?.remove();
+    showToast("수량 수정됐어요 ✅");
+  }
   catch(e){showToast("오류: "+e.message,"#f87171");}
 };
 
@@ -1166,12 +1224,33 @@ window.deleteOrder=async(orderId)=>{
   }catch(e){showToast("삭제 오류: "+e.message,"#f87171");}
 };
 
+// 스크롤하면 드롭다운을 닫는다 (화면 기준으로 떠 있어 위치가 어긋나므로)
+document.addEventListener("scroll",()=>{
+  document.querySelectorAll(".status-dropdown").forEach(el=>{ el.style.display="none"; });
+},true);
+window.addEventListener("resize",()=>{
+  document.querySelectorAll(".status-dropdown").forEach(el=>{ el.style.display="none"; });
+});
+
 window.toggleStatusDropdown=(orderId)=>{
   const dd=document.getElementById("dd-"+orderId);
-  if(!dd)return;
+  const btn=document.getElementById("status-btn-"+orderId);
+  if(!dd||!btn)return;
   const isOpen=dd.style.display==="block";
   document.querySelectorAll(".status-dropdown").forEach(el=>el.style.display="none");
-  if(!isOpen) dd.style.display="block";
+  if(isOpen) return;
+
+  // 버튼 위치를 재서 화면 안에 들어오도록 띄운다 (잘림 방지)
+  dd.style.display="block";
+  const r=btn.getBoundingClientRect();
+  const w=dd.offsetWidth||150, h=dd.offsetHeight||200;
+  let left=r.right-w;                                  // 버튼 오른쪽에 맞춤
+  if(left<8) left=8;
+  if(left+w>window.innerWidth-8) left=window.innerWidth-w-8;
+  let top=r.bottom+4;
+  if(top+h>window.innerHeight-8) top=Math.max(8,r.top-h-4);   // 아래 공간 없으면 위로
+  dd.style.left=left+"px";
+  dd.style.top=top+"px";
 };
 
 // 상태별 스타일
@@ -1315,16 +1394,9 @@ function renderOrderCard(order){
   const s=order.status||"검토중";
   const st=STATUS_STYLE[s]||STATUS_STYLE["검토중"];
   const isCanceled=s==="취소";
-  const nextSteps={
-    "검토중":["승인","반려","취소"],
-    "승인":["준비중","출고대기","출고완료","검토중","취소"],
-    "준비중":["출고대기","출고완료","승인","검토중","취소"],
-    "출고대기":["출고완료","준비중","승인","검토중","취소"],
-    "출고완료":["출고대기","준비중","승인","검토중"],
-    "반려":["승인","검토중","취소"],
-    "취소":[],
-  };
-  const steps=nextSteps[s]||[];
+  // 어떤 상태에서든 다른 모든 상태로 바꿀 수 있다
+  const ALL_STATUS=["검토중","승인","준비중","출고대기","출고완료","반려","취소"];
+  const steps=ALL_STATUS.filter(x=>x!==s);
   const canPrint=["승인","준비중","출고대기","출고완료"].includes(s);
   // 해외 매장(매장명에 _ KR 이 없는 건)만 쉬핑 리스트 대상
   const isOverseas = !String(order.storeName||"").toUpperCase().includes("_ KR");
@@ -1332,7 +1404,7 @@ function renderOrderCard(order){
 
   // 상태 드롭다운 HTML
   let ddHtml="";
-  if(!isCanceled&&steps.length){
+  if(steps.length){
     let items="";
     steps.forEach(step=>{
       const sst=STATUS_STYLE[step]||{};
@@ -1344,11 +1416,11 @@ function renderOrderCard(order){
       items+="<div class=\"dd-item\" data-action=\""+escAttr(action)+"\" style=\"display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:"+(sst.color||"#e2e8f0")+";border-bottom:1px solid rgba(255,255,255,0.05)\">"+(sst.icon||"")+" "+step+"으로 변경</div>";
     });
     items+="<div class=\"dd-item\" data-action=\"window.deleteOrder('"+order.id+"')\" style=\"display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;color:#f87171\">🗑️ 삭제</div>";
-    ddHtml="<div id=\"dd-"+order.id+"\" class=\"status-dropdown\" style=\"display:none;position:absolute;right:0;top:calc(100% + 4px);background:#1e2235;border:1px solid rgba(255,255,255,0.12);border-radius:10px;z-index:999;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden\">"+items+"</div>";
+    ddHtml="<div id=\"dd-"+order.id+"\" class=\"status-dropdown\" style=\"display:none;position:fixed;background:#1e2235;border:1px solid rgba(255,255,255,0.12);border-radius:10px;z-index:9999;min-width:150px;max-height:60vh;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)\">"+items+"</div>";
   }
 
   const statusBtn="<div style=\"position:relative;display:inline-block;flex-shrink:0\">"
-    +"<button id=\"status-btn-"+order.id+"\" class=\"status-toggle-btn\" data-oid=\""+order.id+"\" style=\"display:flex;align-items:center;gap:5px;padding:5px 10px 5px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:"+(isCanceled?"default":"pointer")+";border:1px solid "+st.border+";background:"+st.bg+";color:"+st.color+";white-space:nowrap\" "+(isCanceled?"disabled":"")+">"+st.icon+" "+s+((!isCanceled&&steps.length)?"<span style=\"font-size:9px;opacity:.7;margin-left:2px\">▼</span>":"")+"</button>"
+    +"<button id=\"status-btn-"+order.id+"\" class=\"status-toggle-btn\" data-oid=\""+order.id+"\" style=\"display:flex;align-items:center;gap:5px;padding:5px 10px 5px 12px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid "+st.border+";background:"+st.bg+";color:"+st.color+";white-space:nowrap\">"+st.icon+" "+s+"<span style=\"font-size:9px;opacity:.7;margin-left:2px\">▼</span></button>"
     +ddHtml
     +(isCanceled?"<button class=\"delete-order-btn\" data-oid=\""+order.id+"\" style=\"margin-left:4px;padding:4px 8px;border-radius:6px;font-size:11px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;cursor:pointer\">🗑️</button>":"")
     +"</div>";
